@@ -162,6 +162,11 @@ def init(scheme: str = "twilight", scheme_type: str | SchemeType = "light", doc_
         # "figure.constrained_layout.hspace": 0.1,
         # "figure.constrained_layout.wspace": 0.1,
         # "figure.constrained_layout.pad": 0.1
+        # add to the preamble: amsmath, amssymb
+        "text.latex.preamble": r"""
+            \usepackage{amsmath}
+            \usepackage{amssymb}
+        """
     })
 
 

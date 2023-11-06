@@ -55,11 +55,13 @@ class Line:
 class LegendEntry:
     show: bool
     label: str
+    attempt_render: bool = True
 
     def to_dict(self):
         return {
             "show": self.show,
             "label": self.label,
+            "attempt_render": self.attempt_render,
         }
 
     @classmethod
@@ -67,6 +69,7 @@ class LegendEntry:
         return cls(
             show=d["show"],
             label=d["label"],
+            attempt_render=d["attempt_render"],
         )
 
 @dataclass
@@ -77,6 +80,7 @@ class LineOfBestFit:
     fit_params: List[float]
     legend_entry: LegendEntry
     auto_color: bool = True
+    attempt_plot: bool = True
 
     def to_dict(self):
         return {
@@ -87,6 +91,7 @@ class LineOfBestFit:
             "fit_params": self.fit_params,
             "auto_color": self.auto_color,
             "legend_entry": self.legend_entry.to_dict(),
+            "attempt_plot": self.attempt_plot,
         }
     
     @classmethod
@@ -99,6 +104,7 @@ class LineOfBestFit:
             fit_params=d["fit_params"],
             auto_color=d["auto_color"],
             legend_entry=LegendEntry.from_dict(d["legend_entry"]),
+            attempt_plot=d["attempt_plot"],
         )
 
 @dataclass
@@ -110,6 +116,15 @@ class DataSeries:
     line: Line
     legend_entry: LegendEntry
     line_of_best_fit: LineOfBestFit
+    attempt_plot: bool = True
+    x_original: np.array = None
+    y_original: np.array = None
+
+    def __post_init__(self):
+        if self.x_original is None:
+            self.x_original = self.x.copy()
+        if self.y_original is None:
+            self.y_original = self.y.copy()
 
     @property
     def data(self):
@@ -124,6 +139,7 @@ class DataSeries:
             "line": self.line.to_dict(),
             "legend_entry": self.legend_entry.to_dict(),
             "line_of_best_fit": self.line_of_best_fit.to_dict(),
+            "attempt_plot": self.attempt_plot,
         }
     
     @classmethod
@@ -136,6 +152,7 @@ class DataSeries:
             line=Line.from_dict(d["line"]),
             legend_entry=LegendEntry.from_dict(d["legend_entry"]),
             line_of_best_fit=LineOfBestFit.from_dict(d["line_of_best_fit"]),
+            attempt_plot=d["attempt_plot"],
         )
 
 @dataclass
@@ -144,6 +161,7 @@ class AxisProperties:
     max: float | None
     label: str
     font_size: int
+    attempt_render: bool = True
 
     def to_dict(self):
         return {
@@ -151,6 +169,7 @@ class AxisProperties:
             "max": self.max,
             "label": self.label,
             "font_size": self.font_size,
+            "attempt_render": self.attempt_render,
         }
 
     @classmethod
@@ -160,17 +179,20 @@ class AxisProperties:
             max=d["max"],
             label=d["label"],
             font_size=d["font_size"],
+            attempt_render=d["attempt_render"],
         )
 
 @dataclass
 class TitleProperties:
     text: str
     font_size: int
+    attempt_render: bool = True
 
     def to_dict(self):
         return {
             "text": self.text,
             "font_size": self.font_size,
+            "attempt_render": self.attempt_render,
         }
     
     @classmethod
@@ -178,6 +200,7 @@ class TitleProperties:
         return cls(
             text=d["text"],
             font_size=d["font_size"],
+            attempt_render=d["attempt_render"],
         )
 
 @dataclass

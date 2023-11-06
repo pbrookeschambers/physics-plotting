@@ -8,11 +8,16 @@ prefixes = {
     "tera": "T",
     "peta": "P",
     "exa": "E",
+    "zetta": "Z",
+    "yotta": "Y",
+    "deci": "d",
     "centi": "c",
     "milli": "m",
     "micro": "µ",
     "nano": "n",
     "pico": "p",
+    "femto": "f",
+    "atto": "a",
 }
 
 units = {

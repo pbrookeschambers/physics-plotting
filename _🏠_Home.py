@@ -4,12 +4,14 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import qoplots.qoplots as qp
+import re
 from contextlib import nullcontext
 
 from data import DataSeries, FigureProperties, LegendEntry, Line, LineOfBestFit, Marker
 from constants import MarkerStyles, LineStyles
 from fitting import fit, get_fitted_data
 from text import process_fit, process_units
+from errors import handle_data_error, handle_fit_error, handle_latex_error
 
 
 
@@ -47,9 +49,24 @@ def change_active_series(name: str):
     else:
         raise ValueError(f"Series with name {name} not found.")
 
+def extract_data(text: str) -> np.array:
+    # data could be comma separated, space separated, tab separated, or new line separated
+    separated = re.split(r"[,\s\t\n]+", text)
+    if len(separated) == 1:
+        raise ValueError("No data found.")
+    try:
+        data = np.array([float(x) for x in separated])
+        return data
+    except ValueError:
+        raise ValueError("Data must be numeric.")
+
 def add_new_data():
-    x_data = st.session_state.new_x_data.strip().split("\n")
-    y_data = st.session_state.new_y_data.strip().split("\n")
+    try:
+        x_data = extract_data(st.session_state.new_x_data.strip())
+        y_data = extract_data(st.session_state.new_y_data.strip())
+    except Exception as e:
+        st.error(handle_data_error(e))
+        return
     if len(x_data) != len(y_data):
         st.error("The number of $x$-values must match the number of $y$-values.")
         return
@@ -120,15 +137,19 @@ def delete_series(s_name: str):
             st.session_state.active_series = None
 
 def update_fit(series: DataSeries, fit_type: str, show_fit: bool):
+    series.line_of_best_fit.attempt_plot = True
     # fit the data
-    series.line_of_best_fit.fit_params = fit(fit_type, series.x, series.y)
+    try:
+        series.line_of_best_fit.fit_params = fit(fit_type, series.x, series.y)
+    except Exception as e:
+        st.error(handle_fit_error(e, fit_type, series.name))
+        series.line_of_best_fit.attempt_plot = False
     # update the fit type
     series.line_of_best_fit.fit_type = fit_type
     # update showing
     series.line_of_best_fit.show = show_fit
 
 def update_data(series: DataSeries, key: str):
-
     # has format {"edited_rows": {row: {column: value}}}
     # will only ever have one row and one column
     changed = st.session_state[key]
@@ -136,18 +157,38 @@ def update_data(series: DataSeries, key: str):
         for column, value in ch.items():
             if column == "0":
                 try:
-                    series.x[row] = float(value)
+                    if value is None:
+                        series.x[row] = 0
+                    else:
+                        series.x[row] = float(value)
                 except Exception as e:
                     st.error("The data must be numeric.")
                     return
             elif column == "1":
                 try:
-                    series.y[row] = float(value)
+                    if value is None:
+                        series.y[row] = 0
+                    else:
+                        series.y[row] = float(value)
                 except Exception as e:
                     st.error("The data must be numeric.")
                     return
             else:
                 raise ValueError(f"Invalid column index: {column}")
+    for row in changed["deleted_rows"]:
+        series.x = np.delete(series.x, row)
+        series.y = np.delete(series.y, row)
+    for row in changed["added_rows"]:
+        # added rows are always at the end
+        if "0" not in row:
+            series.x = np.append(series.x, 0)
+        else:
+            series.x = np.append(series.x, float(row["0"]))
+        if "1" not in row:
+            series.y = np.append(series.y, 0)
+        else:
+            series.y = np.append(series.y, float(row["1"]))
+        
 
 
 
@@ -419,6 +460,8 @@ else:
                     st.latex(r"y = a\text{e}^{bx} + c")
                 case "Sinusoidal":
                     st.latex(r"y = a\sin(bx + c) + d")
+                case "Logarithmic":
+                    st.latex(r"y = a\ln(bx) + c")
                 case _:
                     st.error("Invalid fit type.")
             st.subheader("Line")
@@ -806,11 +849,13 @@ with data_col:
                         use_container_width=True, 
                         key = f"{s.name}_data",
                         on_change=update_data,
-                        args=(s, f"{s.name}_data")
+                        args=(s, f"{s.name}_data"),
+                        column_config = {"0": "x", "1": "y"},
+                        num_rows="dynamic"
                     )
                     # delete button
                     st.button(
-                        "Delete", 
+                        "🗑️ Delete Series", 
                         key=f"{s.name}_delete", 
                         type = "primary",
                         on_click=delete_series,
@@ -875,8 +920,8 @@ with plot_col:
                 **line,
             )
             # line of best fit
-            if s.line_of_best_fit.show:
-                x_temp = np.linspace(x_data.min(), x_data.max(), 100)
+            if s.line_of_best_fit.show and s.line_of_best_fit.attempt_plot:
+                x_temp = np.linspace(x_data.min(), x_data.max(), max(100, len(x_data)))
                 y_temp = get_fitted_data(x_temp, s.line_of_best_fit.fit_type, s.line_of_best_fit.fit_params)
                 legend = {
                     "label": process_fit(process_units(s.line_of_best_fit.legend_entry.label), s.line_of_best_fit.fit_params),
@@ -920,32 +965,33 @@ with plot_col:
         )
         # ax.set_facecolor(st.session_state.background_color)
         f = io.BytesIO()
-        plt.savefig(f, format="svg", bbox_inches = "tight")
-        f.seek(0)
+        try:
+            plt.savefig(f, format="svg", bbox_inches = "tight")
+            f.seek(0)
 
-        data = base64.b64encode(f.read()).decode("utf-8")
-        st.write(
-            f'<img src="data:image/svg+xml;base64,{data}" alt="Plot" class="img-fluid" style="width: 100%;">',
-            unsafe_allow_html=True,
-        )
+            data = base64.b64encode(f.read()).decode("utf-8")
+            st.write(
+                f'<img src="data:image/svg+xml;base64,{data}" alt="Plot" class="img-fluid" style="width: 100%;">',
+                unsafe_allow_html=True,
+            )
+            plot_file = io.BytesIO()
+            fmt = st.session_state.figure_properties.file_type.lower()
+            options = {
+                "bbox_inches" : "tight",
+                "format" : fmt,
+            }
+            if fmt == "png":
+                options["dpi"] = 300
+            plt.savefig(plot_file, **options)
+            plot_file.seek(0)
 
-        # plot data in correct format
-        plot_file = io.BytesIO()
-        fmt = st.session_state.figure_properties.file_type.lower()
-        options = {
-            "bbox_inches" : "tight",
-            "format" : fmt,
-        }
-        if fmt == "png":
-            options["dpi"] = 300
-        plt.savefig(plot_file, **options)
-        plot_file.seek(0)
-
-        # sidebar download button
-        st.sidebar.download_button(
-            "Download",
-            plot_file,
-            f"{st.session_state.figure_properties.filename}.{st.session_state.file_format.lower()}",
-            key="download",
-            type="primary"
-        )
+            # sidebar download button
+            st.sidebar.download_button(
+                "Download",
+                plot_file,
+                f"{st.session_state.figure_properties.filename}.{st.session_state.file_format.lower()}",
+                key="download",
+                type="primary"
+            )
+        except Exception as e:
+            st.error(handle_latex_error(e))
