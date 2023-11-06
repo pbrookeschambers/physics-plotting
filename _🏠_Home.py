@@ -1,7 +1,6 @@
 import base64
 import io
 import streamlit as st
-from streamlit_modal import Modal
 import numpy as np
 import matplotlib.pyplot as plt
 import qoplots.qoplots as qp
