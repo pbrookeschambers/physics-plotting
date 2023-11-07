@@ -2,3 +2,7 @@
 
 level = "info"
 messageFormat = "%(asctime)s %(message)s"
+
+[theme]
+
+base = "light"
