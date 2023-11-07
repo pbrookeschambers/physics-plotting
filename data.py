@@ -21,7 +21,7 @@ class Marker:
     @classmethod
     def from_dict(cls, d):
         return cls(
-            style=MarkerStyles(d["style"]),
+            style=getattr(MarkerStyles, d["style"]),
             color=d["color"],
             size=d["size"],
             auto_color=d["auto_color"],
@@ -45,7 +45,7 @@ class Line:
     @classmethod
     def from_dict(cls, d):
         return cls(
-            style=LineStyles(d["style"]),
+            style=getattr(LineStyles, d["style"]),
             color=d["color"],
             width=d["width"],
             auto_color=d["auto_color"],
@@ -85,10 +85,9 @@ class LineOfBestFit:
     def to_dict(self):
         return {
             "show": self.show,
-            "color": self.color,
-            "width": self.width,
-            "fit_Type": self.fit_type,
-            "fit_params": self.fit_params,
+            "line": self.line.to_dict(),
+            "fit_type": self.fit_type,
+            "fit_params": self.fit_params.tolist() if isinstance(self.fit_params, np.ndarray) else self.fit_params,
             "auto_color": self.auto_color,
             "legend_entry": self.legend_entry.to_dict(),
             "attempt_plot": self.attempt_plot,
@@ -98,9 +97,8 @@ class LineOfBestFit:
     def from_dict(cls, d):
         return cls(
             show=d["show"],
-            color=d["color"],
-            width=d["width"],
-            fit_Type=d["fit_Type"],
+            line=Line.from_dict(d["line"]),
+            fit_type=d["fit_type"],
             fit_params=d["fit_params"],
             auto_color=d["auto_color"],
             legend_entry=LegendEntry.from_dict(d["legend_entry"]),
@@ -228,7 +226,7 @@ class LegendProperties:
             show=d["show"],
             position=d["position"],
             font_size=d["font_size"],
-            color=d["background_color"],
+            background_color=d["background_color"],
             opacity=d["opacity"],
             auto_color=d["auto_color"],
         )

@@ -15,6 +15,8 @@ st.set_page_config(
 
 st.markdown("""# Plotting Help
             
+**Note: Refreshing the page will clear all of your work.** To avoid this, see the Saving And Loading section below.
+            
 This app is designed to help you create well-formatted plots. It was created by Peter Brookes Chambers (p.brookes-chambers1@newcastle.ac.uk) using Streamlit.
          
 This page is designed to help you get started with the app and create plots. For a more technical description of the app, please see the Docs page.""")

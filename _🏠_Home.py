@@ -7,6 +7,7 @@ import qoplots.qoplots as qp
 import re
 from contextlib import nullcontext
 import logging
+import json
 logging.basicConfig(
     level=logging.INFO, 
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -17,7 +18,7 @@ from data import DataSeries, FigureProperties, LegendEntry, Line, LineOfBestFit,
 from constants import MarkerStyles, LineStyles
 from fitting import fit, get_fitted_data
 from text import process_fit, process_units
-from errors import handle_data_error, handle_fit_error, handle_latex_error
+from errors import handle_data_error, handle_fit_error, handle_json_error, handle_latex_error
 
 def format_elapsed_time(t_ns: float):
     # time is in nanoseconds, format in an appropriate unit to 3 significant figures (NOT 3 decimal places)
@@ -519,6 +520,23 @@ else:
                     st.latex(r"y = a\ln(bx) + c")
                 case _:
                     st.error("Invalid fit type.")
+            col1, col2 = st.columns([0.4, 0.6])
+            with col1:
+                # st.write("Show Fit Parameters")
+                show = st.toggle("Show Fit Parameters", False)
+            with col2:
+                if show:
+                    param_names = ["a", "b", "c", "d"][:len(st.session_state.active_series.line_of_best_fit.fit_params)]
+                    params = zip(param_names, st.session_state.active_series.line_of_best_fit.fit_params)
+                    st.dataframe(
+                        params,
+                        hide_index = True,
+                        use_container_width=True,
+                        column_config = {
+                            "0": st.column_config.TextColumn("Parameter", width = "small"),
+                            "1": st.column_config.NumberColumn("Value", format = "%.8g"),
+                        }
+                   )
             st.subheader("Line")
             # line style
             st.selectbox(
@@ -599,166 +617,47 @@ else:
                 )
 
 
+if len(st.session_state.data_series) > 0:
+    st.sidebar.divider()
+    st.sidebar.header("Figure")
 
-st.sidebar.divider()
-st.sidebar.header("Figure")
-
-with st.sidebar.expander("$x$ Axis", expanded=False):
-    # x axis limits
-    col1, col2 = st.columns(2)
-    with col1:
-        x_min = st.text_input(
-            "$x$ Min", 
-            "" if st.session_state.figure_properties.x_axis.min is None else st.session_state.figure_properties.x_axis.min, 
-            key="x_min",
-            help = "Leave blank for automatic scaling.",
+    with st.sidebar.expander("$x$ Axis", expanded=False):
+        # x axis limits
+        col1, col2 = st.columns(2)
+        with col1:
+            x_min = st.text_input(
+                "$x$ Min", 
+                "" if st.session_state.figure_properties.x_axis.min is None else st.session_state.figure_properties.x_axis.min, 
+                key="x_min",
+                help = "Leave blank for automatic scaling.",
+                on_change = lambda: setattr(
+                    st.session_state.figure_properties.x_axis,
+                    "min",
+                    None if st.session_state.x_min == "" else float(st.session_state.x_min),
+                ),
+            )
+        with col2:
+            # x_max = st.number_input("$x$ Max", -100, 100, 10, key = "x_max")
+            x_max = st.text_input(
+                "$x$ Max", 
+                "" if st.session_state.figure_properties.x_axis.max is None else st.session_state.figure_properties.x_axis.max, 
+                key="x_max",
+                help = "Leave blank for automatic scaling.",
+                on_change = lambda: setattr(
+                    st.session_state.figure_properties.x_axis,
+                    "max",
+                    None if st.session_state.x_max == "" else float(st.session_state.x_max),
+                ),
+            )
+        # x axis label
+        st.text_input(
+            "$x$ Axis Label", 
+            st.session_state.figure_properties.x_axis.label,
+            key="x_label",
             on_change = lambda: setattr(
                 st.session_state.figure_properties.x_axis,
-                "min",
-                None if st.session_state.x_min == "" else float(st.session_state.x_min),
-            ),
-        )
-    with col2:
-        # x_max = st.number_input("$x$ Max", -100, 100, 10, key = "x_max")
-        x_max = st.text_input(
-            "$x$ Max", 
-            "" if st.session_state.figure_properties.x_axis.max is None else st.session_state.figure_properties.x_axis.max, 
-            key="x_max",
-            help = "Leave blank for automatic scaling.",
-            on_change = lambda: setattr(
-                st.session_state.figure_properties.x_axis,
-                "max",
-                None if st.session_state.x_max == "" else float(st.session_state.x_max),
-            ),
-        )
-    # x axis label
-    st.text_input(
-        "$x$ Axis Label", 
-        st.session_state.figure_properties.x_axis.label,
-        key="x_label",
-        on_change = lambda: setattr(
-            st.session_state.figure_properties.x_axis,
-            "label",
-            st.session_state.x_label,
-        ),
-    )
-    # font size
-    st.slider(
-        "Font Size", 
-        6, 
-        32, 
-        int(st.session_state.figure_properties.x_axis.font_size), 
-        key="font_size_x",
-        on_change = lambda: setattr(
-            st.session_state.figure_properties.x_axis,
-            "font_size",
-            st.session_state.font_size_x,
-        ),
-    )
-with st.sidebar.expander("$y$ Axis", expanded=False):
-    # y axis limits
-    col1, col2 = st.columns(2)
-    with col1:
-        # y_min = st.number_input("$y$ Min", -100, 100, -10, key = "y_min")
-        y_min = st.text_input(
-            "$y$ Min", 
-            "" if st.session_state.figure_properties.y_axis.min is None else st.session_state.figure_properties.y_axis.min,
-            key="y_min",
-            help = "Leave blank for automatic scaling.",
-            on_change = lambda: setattr(
-                st.session_state.figure_properties.y_axis,
-                "min",
-                None if st.session_state.y_min == "" else float(st.session_state.y_min),
-            ),
-        )
-    with col2:
-        # y_max = st.number_input("$y$ Max", -100, 100, 10, key = "y_max")
-        y_max = st.text_input(
-            "$y$ Max", 
-            "" if st.session_state.figure_properties.y_axis.max is None else st.session_state.figure_properties.y_axis.max,
-            key="y_max",
-            help = "Leave blank for automatic scaling.",
-            on_change = lambda: setattr(
-                st.session_state.figure_properties.y_axis,
-                "max",
-                None if st.session_state.y_max == "" else float(st.session_state.y_max),
-            ),
-        )
-    # y axis label
-    st.text_input(
-        "$y$ Axis Label", 
-        st.session_state.figure_properties.y_axis.label, 
-        key="y_label",
-        on_change = lambda: setattr(
-            st.session_state.figure_properties.y_axis,
-            "label",
-            st.session_state.y_label,
-        ),
-    )
-    # font size
-    st.slider(
-        "Font Size", 
-        6, 
-        32, 
-        int(st.session_state.figure_properties.y_axis.font_size), 
-        key="font_size_y",
-        on_change = lambda: setattr(
-            st.session_state.figure_properties.y_axis,
-            "font_size",
-            st.session_state.font_size_y,
-        ),
-    )
-with st.sidebar.expander("Title", expanded=False):
-    # title
-    st.text_input(
-        "Title", 
-        st.session_state.figure_properties.title.text, 
-        key="title",
-        on_change = lambda: setattr(
-            st.session_state.figure_properties.title,
-            "text",
-            st.session_state.title,
-        ),
-    )
-    # font size
-    st.slider(
-        "Font Size", 
-        6, 
-        32, 
-        int(st.session_state.figure_properties.title.font_size),
-        key="font_size_title",
-        on_change = lambda: setattr(
-            st.session_state.figure_properties.title,
-            "font_size",
-            st.session_state.font_size_title,
-        ),
-    )
-with st.sidebar.expander("Legend", expanded=False):
-    # position
-    show_legend = st.toggle("Show Legend", True, key="show_legend")
-    if show_legend:
-        positions = [
-                "Best",
-                "Upper Right",
-                "Upper Left",
-                "Lower Left",
-                "Lower Right",
-                "Right",
-                "Center Left",
-                "Center Right",
-                "Lower Center",
-                "Upper Center",
-                "Center",
-            ]
-        st.selectbox(
-            "Position",
-            positions,
-            key="legend_position",
-            index = positions.index(st.session_state.figure_properties.legend.position),
-            on_change = lambda: setattr(
-                st.session_state.figure_properties.legend,
-                "position",
-                st.session_state.legend_position,
+                "label",
+                st.session_state.x_label,
             ),
         )
         # font size
@@ -766,104 +665,259 @@ with st.sidebar.expander("Legend", expanded=False):
             "Font Size", 
             6, 
             32, 
-            int(st.session_state.figure_properties.legend.font_size),
-            key="font_size_legend",
+            int(st.session_state.figure_properties.x_axis.font_size), 
+            key="font_size_x",
             on_change = lambda: setattr(
-                st.session_state.figure_properties.legend,
+                st.session_state.figure_properties.x_axis,
                 "font_size",
-                st.session_state.font_size_legend,
+                st.session_state.font_size_x,
             ),
         )
-        # use automatic colour?
-        st.toggle(
-            "Use Automatic Colour",
-            st.session_state.figure_properties.legend.auto_color,
-            key="legend_auto_color",
-            on_change=lambda: setattr(
-                st.session_state.figure_properties.legend,
-                "auto_color",
-                st.session_state.legend_auto_color,
-            ),
-        )
-        if not st.session_state.figure_properties.legend.auto_color:
-            # legend background colour
-            st.color_picker(
-                "Background Color", 
-                st.session_state.figure_properties.legend.background_color,
-                key="legend_background_color",
-                on_change=lambda: setattr(
-                    st.session_state.figure_properties.legend,
-                    "background_color",
-                    st.session_state.legend_background_color,
+    with st.sidebar.expander("$y$ Axis", expanded=False):
+        # y axis limits
+        col1, col2 = st.columns(2)
+        with col1:
+            # y_min = st.number_input("$y$ Min", -100, 100, -10, key = "y_min")
+            y_min = st.text_input(
+                "$y$ Min", 
+                "" if st.session_state.figure_properties.y_axis.min is None else st.session_state.figure_properties.y_axis.min,
+                key="y_min",
+                help = "Leave blank for automatic scaling.",
+                on_change = lambda: setattr(
+                    st.session_state.figure_properties.y_axis,
+                    "min",
+                    None if st.session_state.y_min == "" else float(st.session_state.y_min),
                 ),
             )
-            # opacity
+        with col2:
+            # y_max = st.number_input("$y$ Max", -100, 100, 10, key = "y_max")
+            y_max = st.text_input(
+                "$y$ Max", 
+                "" if st.session_state.figure_properties.y_axis.max is None else st.session_state.figure_properties.y_axis.max,
+                key="y_max",
+                help = "Leave blank for automatic scaling.",
+                on_change = lambda: setattr(
+                    st.session_state.figure_properties.y_axis,
+                    "max",
+                    None if st.session_state.y_max == "" else float(st.session_state.y_max),
+                ),
+            )
+        # y axis label
+        st.text_input(
+            "$y$ Axis Label", 
+            st.session_state.figure_properties.y_axis.label, 
+            key="y_label",
+            on_change = lambda: setattr(
+                st.session_state.figure_properties.y_axis,
+                "label",
+                st.session_state.y_label,
+            ),
+        )
+        # font size
+        st.slider(
+            "Font Size", 
+            6, 
+            32, 
+            int(st.session_state.figure_properties.y_axis.font_size), 
+            key="font_size_y",
+            on_change = lambda: setattr(
+                st.session_state.figure_properties.y_axis,
+                "font_size",
+                st.session_state.font_size_y,
+            ),
+        )
+    with st.sidebar.expander("Title", expanded=False):
+        # title
+        st.text_input(
+            "Title", 
+            st.session_state.figure_properties.title.text, 
+            key="title",
+            on_change = lambda: setattr(
+                st.session_state.figure_properties.title,
+                "text",
+                st.session_state.title,
+            ),
+        )
+        # font size
+        st.slider(
+            "Font Size", 
+            6, 
+            32, 
+            int(st.session_state.figure_properties.title.font_size),
+            key="font_size_title",
+            on_change = lambda: setattr(
+                st.session_state.figure_properties.title,
+                "font_size",
+                st.session_state.font_size_title,
+            ),
+        )
+    with st.sidebar.expander("Legend", expanded=False):
+        # position
+        show_legend = st.toggle("Show Legend", True, key="show_legend")
+        if show_legend:
+            positions = [
+                    "Best",
+                    "Upper Right",
+                    "Upper Left",
+                    "Lower Left",
+                    "Lower Right",
+                    "Right",
+                    "Center Left",
+                    "Center Right",
+                    "Lower Center",
+                    "Upper Center",
+                    "Center",
+                ]
+            st.selectbox(
+                "Position",
+                positions,
+                key="legend_position",
+                index = positions.index(st.session_state.figure_properties.legend.position),
+                on_change = lambda: setattr(
+                    st.session_state.figure_properties.legend,
+                    "position",
+                    st.session_state.legend_position,
+                ),
+            )
+            # font size
             st.slider(
-                "Opacity", 
-                0.0, 
-                1.0, 
-                float(st.session_state.figure_properties.legend.opacity),
-                step = 0.05,
-                key="legend_opacity",
-                on_change=lambda: setattr(
+                "Font Size", 
+                6, 
+                32, 
+                int(st.session_state.figure_properties.legend.font_size),
+                key="font_size_legend",
+                on_change = lambda: setattr(
                     st.session_state.figure_properties.legend,
-                    "opacity",
-                    st.session_state.legend_opacity,
+                    "font_size",
+                    st.session_state.font_size_legend,
                 ),
             )
-# background colour
-# st.sidebar.color_picker("Background Color", "#ffffff", key="background_color")
-themes = [
-    "Newcastle",
-    "Rose Pine",
-    "Nord",
-    "Twilight",
-    "Catppuccin"
+            # use automatic colour?
+            st.toggle(
+                "Use Automatic Colour",
+                st.session_state.figure_properties.legend.auto_color,
+                key="legend_auto_color",
+                on_change=lambda: setattr(
+                    st.session_state.figure_properties.legend,
+                    "auto_color",
+                    st.session_state.legend_auto_color,
+                ),
+            )
+            if not st.session_state.figure_properties.legend.auto_color:
+                # legend background colour
+                st.color_picker(
+                    "Background Color", 
+                    st.session_state.figure_properties.legend.background_color,
+                    key="legend_background_color",
+                    on_change=lambda: setattr(
+                        st.session_state.figure_properties.legend,
+                        "background_color",
+                        st.session_state.legend_background_color,
+                    ),
+                )
+                # opacity
+                st.slider(
+                    "Opacity", 
+                    0.0, 
+                    1.0, 
+                    float(st.session_state.figure_properties.legend.opacity),
+                    step = 0.05,
+                    key="legend_opacity",
+                    on_change=lambda: setattr(
+                        st.session_state.figure_properties.legend,
+                        "opacity",
+                        st.session_state.legend_opacity,
+                    ),
+                )
+    # background colour
+    # st.sidebar.color_picker("Background Color", "#ffffff", key="background_color")
+    # themes = [
+    #     "Newcastle",
+    #     "Rose Pine",
+    #     "Nord",
+    #     "Twilight",
+    #     "Catppuccin"
+    # ]
+    themes = [
+        "Afterglow",
+        "Andromeda",
+        # "Apex",
+        "Aspect",
+        "Blazer",
+        # "Blueberrypie",
+        "Breeze",
+        # "Broadcast",
+        "Chalkboard",
+        "Concourse",
+        "Espresso",
+        "Executive",
+        # "Flatland",
+        "Japanesque",
+        "Jellybeans",
+        "Jubi",
+        "Lab Fox",
+        "Lovelace",
+        "Material",
+        "Module",
+        # "Nemo",
+        "Neutron",
+        "Newcastle",
+        "Nord",
+        "Office Default",
+        "Popping and Locking",
+        # "Red Planet",
+        "Rose Pine",
+        "Sketchbook",
+        "Solstice",
+        "Spacegray",
+        "Sundried",
+        "Twilight",
+        "Urban",
 ]
-st.sidebar.selectbox(
-    "Theme",
-    themes,
-    index = themes.index(st.session_state.figure_properties.theme),
-    key="theme",
-    on_change = lambda: setattr(
-        st.session_state.figure_properties,
-        "theme",
-        st.session_state.theme,
-    ),
-)
-st.sidebar.divider()
-st.sidebar.header("File")
-# file format
-formats = [
-        "PDF",
-        "PNG",
-        "SVG",
-        "PS",
-        "EPS",
-    ]
-st.sidebar.selectbox(
-    "File Format",
-    formats,
-    key="file_format",
-    index = formats.index(st.session_state.figure_properties.file_type.upper()),
-    on_change = lambda: setattr(
-        st.session_state.figure_properties,
-        "file_type",
-        st.session_state.file_format.upper(),
-    ),
-)
-# file name
-st.sidebar.text_input(
-    "File Name", 
-    st.session_state.figure_properties.filename,
-    key="file_name", 
-    help = "Do not include the file extension.",
-    on_change = lambda: setattr(
-        st.session_state.figure_properties,
-        "filename",
-        st.session_state.file_name,
-    ),
-)
+    st.sidebar.selectbox(
+        "Theme",
+        themes,
+        index = themes.index(st.session_state.figure_properties.theme),
+        key="theme",
+        on_change = lambda: setattr(
+            st.session_state.figure_properties,
+            "theme",
+            st.session_state.theme,
+        ),
+    )
+    st.sidebar.divider()
+    st.sidebar.header("File")
+    # file format
+    formats = [
+            "PDF",
+            "PNG",
+            "SVG",
+            "PS",
+            "EPS",
+        ]
+    st.sidebar.selectbox(
+        "File Format",
+        formats,
+        key="file_format",
+        index = formats.index(st.session_state.figure_properties.file_type.upper()),
+        on_change = lambda: setattr(
+            st.session_state.figure_properties,
+            "file_type",
+            st.session_state.file_format.upper(),
+        ),
+    )
+    # file name
+    st.sidebar.text_input(
+        "File Name", 
+        st.session_state.figure_properties.filename,
+        key="file_name", 
+        help = "Do not include the file extension.",
+        on_change = lambda: setattr(
+            st.session_state.figure_properties,
+            "filename",
+            st.session_state.file_name,
+        ),
+    )
 # # download
 # st.sidebar.button("Download", key="download", type = "primary")
 
@@ -941,7 +995,8 @@ with data_col:
             on_click = add_new_data
         )
 
-set_theme(st.session_state.theme)
+if len(st.session_state.data_series) > 0:
+    set_theme(st.session_state.theme)
 
 # plot
 
@@ -1066,3 +1121,35 @@ with plot_col:
                 )
             except Exception as e:
                 st.error(handle_latex_error(e))
+
+st.sidebar.divider()
+st.sidebar.header("Advanced")
+
+if len(st.session_state.data_series) > 0:
+    json_data = json.dumps({
+        "data_series":[s.to_dict() for s in st.session_state.data_series],
+        "figure_properties":st.session_state.figure_properties.to_dict(),
+    })
+    left, right = st.sidebar.columns([0.3, 0.7])
+    st.sidebar.download_button(
+        "Download Data",
+        json_data,
+        st.session_state.figure_properties.filename + ".json",
+        key="download_data",
+        type="primary"
+    )
+else:
+    # upload data
+    uploaded_file = st.sidebar.file_uploader("Upload Data", type=["json"])
+    if uploaded_file is not None:
+        try:
+            data = json.load(uploaded_file)
+            st.session_state.data_series = []
+            for s in data["data_series"]:
+                st.session_state.data_series.append(DataSeries.from_dict(s))
+            st.session_state.figure_properties = FigureProperties.from_dict(data["figure_properties"])
+            st.rerun()
+        except Exception as e:
+            st.error(handle_json_error(e))
+    else:
+        st.sidebar.markdown("No file uploaded.")

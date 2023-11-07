@@ -90,3 +90,6 @@ Please check that it is a valid string. The full error message is:
 ```
 {e.args[0]}
 ```"""
+
+def handle_json_error(e):
+    return e.args[0]
