@@ -8,6 +8,8 @@ st.set_page_config(
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="collapsed",
+    # light theme
+    theme="light",
     # menu_items={
     #     "About": about
     # }
