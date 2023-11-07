@@ -1,0 +1,3 @@
+If the sidebar on the left is not already shown, expand it using the small right arrow in the top left. Under "Options", in the "Figure" section, you'll find four expandable sections.
+
+The process is identical for the $x$ and $y$ axes. Expand the section for the relevant axis, and you'll see two fields for the minimum and maximum values. Use these to set the axis limits. If you want the limits to be determined automatically, leave these fields blank. Otherwise, enter any numeric value. It is possible to mix these; leaving the maximum blank but setting the minimum to $0$ will allow the maximum to be determined automatically, but force the minimum to be $0$.

@@ -1,0 +1,1 @@
+If the sidebar on the left is not already shown, expand it using the small right arrow in the top left. Under "Options", in the "Figure" section, you'll find a dropdown to select the theme. This affects the text colour and background colour of the figure, as well as any objects which have "Use Automatic Colour" enabled.

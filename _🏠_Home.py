@@ -74,6 +74,11 @@ st.markdown("""<style>
     div:has(> div[data-testid="stColorBlock"]) {
         width: 100%;
     }
+    div.stSpinner > div {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 </style>""",
     unsafe_allow_html=True,)
 
@@ -938,121 +943,123 @@ set_theme(st.session_state.theme)
 # plot
 
 with plot_col:
-    if len(st.session_state.data_series) > 0:
-        logging.debug("Creating empty figure")
-        fig, ax = plt.subplots()
-        logging.debug("Plotting data")
-        start = time.perf_counter_ns()
-        for s in st.session_state.data_series:
-            x_data = s.x
-            y_data = s.y
-            legend = {
-                "label": process_units(s.legend_entry.label),
-            } if s.legend_entry.show else {}
-            marker = {
-                "marker": s.marker.style.value,
-                "markersize": s.marker.size,
-            }
-            if not s.marker.auto_color:
-                marker["markerfacecolor"] = s.marker.color
-                marker["markeredgecolor"] = s.marker.color
-            line = {
-                "linestyle": s.line.style.value,
-                "linewidth": s.line.width,
-            }
-            if not s.line.auto_color:
-                line["color"] = s.line.color
-            ax.plot(
-                x_data,
-                y_data,
-                **legend,
-                **marker,
-                **line,
-            )
-            # line of best fit
-            if s.line_of_best_fit.show and s.line_of_best_fit.attempt_plot:
-                x_temp = np.linspace(x_data.min(), x_data.max(), max(100, len(x_data)))
-                y_temp = get_fitted_data(x_temp, s.line_of_best_fit.fit_type, s.line_of_best_fit.fit_params)
+    with st.spinner("Generating Plot"):
+        # time.sleep(20)
+        if len(st.session_state.data_series) > 0:
+            logging.debug("Creating empty figure")
+            fig, ax = plt.subplots()
+            logging.debug("Plotting data")
+            start = time.perf_counter_ns()
+            for s in st.session_state.data_series:
+                x_data = s.x
+                y_data = s.y
                 legend = {
-                    "label": process_fit(process_units(s.line_of_best_fit.legend_entry.label), s.line_of_best_fit.fit_params),
-                } if s.line_of_best_fit.legend_entry.show else {}
-                line = {
-                    "linestyle": s.line_of_best_fit.line.style.value,
-                    "linewidth": s.line_of_best_fit.line.width,
+                    "label": process_units(s.legend_entry.label),
+                } if s.legend_entry.show else {}
+                marker = {
+                    "marker": s.marker.style.value,
+                    "markersize": s.marker.size,
                 }
-                if not s.line_of_best_fit.line.auto_color:
-                    line["color"] = s.line_of_best_fit.line.color
+                if not s.marker.auto_color:
+                    marker["markerfacecolor"] = s.marker.color
+                    marker["markeredgecolor"] = s.marker.color
+                line = {
+                    "linestyle": s.line.style.value,
+                    "linewidth": s.line.width,
+                }
+                if not s.line.auto_color:
+                    line["color"] = s.line.color
                 ax.plot(
-                    x_temp,
-                    y_temp,
+                    x_data,
+                    y_data,
                     **legend,
+                    **marker,
                     **line,
                 )
-        end = time.perf_counter_ns()
-        logging.debug(f"Plotted data in {format_elapsed_time(end - start)}")
-        logging.debug("Setting figure properties")
-        ax.set_xlim(st.session_state.figure_properties.x_axis.min, st.session_state.figure_properties.x_axis.max)
-        ax.set_ylim(st.session_state.figure_properties.y_axis.min, st.session_state.figure_properties.y_axis.max)
-        ax.set_xlabel(
-            process_units(st.session_state.figure_properties.x_axis.label),
-            fontsize=st.session_state.figure_properties.x_axis.font_size,
-        )
-        ax.set_ylabel(
-            process_units(st.session_state.figure_properties.y_axis.label),
-            fontsize=st.session_state.figure_properties.y_axis.font_size,
-        )
-        if show_legend:
-            legend_opts = {
-                "loc": st.session_state.figure_properties.legend.position.lower(),
-                "fontsize": st.session_state.figure_properties.legend.font_size,
-            }
-            if not st.session_state.figure_properties.legend.auto_color:
-                legend_opts["facecolor"] = st.session_state.figure_properties.legend.background_color
-                legend_opts["framealpha"] = st.session_state.figure_properties.legend.opacity
-            ax.legend(
-                **legend_opts,
-            )
-        ax.set_title(
-            process_units(st.session_state.figure_properties.title.text),
-            fontsize=st.session_state.figure_properties.title.font_size,
-        )
-        # ax.set_facecolor(st.session_state.background_color)
-        logging.info("Plotting figure for display")
-        start = time.perf_counter_ns()
-        f = io.BytesIO()
-        try:
-            plt.savefig(f, format="svg", bbox_inches = "tight")
-            f.seek(0)
-
-            data = base64.b64encode(f.read()).decode("utf-8")
-            st.write(
-                f'<img src="data:image/svg+xml;base64,{data}" alt="Plot" class="img-fluid" style="width: 100%;">',
-                unsafe_allow_html=True,
-            )
+                # line of best fit
+                if s.line_of_best_fit.show and s.line_of_best_fit.attempt_plot:
+                    x_temp = np.linspace(x_data.min(), x_data.max(), max(100, len(x_data)))
+                    y_temp = get_fitted_data(x_temp, s.line_of_best_fit.fit_type, s.line_of_best_fit.fit_params)
+                    legend = {
+                        "label": process_fit(process_units(s.line_of_best_fit.legend_entry.label), s.line_of_best_fit.fit_params),
+                    } if s.line_of_best_fit.legend_entry.show else {}
+                    line = {
+                        "linestyle": s.line_of_best_fit.line.style.value,
+                        "linewidth": s.line_of_best_fit.line.width,
+                    }
+                    if not s.line_of_best_fit.line.auto_color:
+                        line["color"] = s.line_of_best_fit.line.color
+                    ax.plot(
+                        x_temp,
+                        y_temp,
+                        **legend,
+                        **line,
+                    )
             end = time.perf_counter_ns()
-            logging.info(f"Figure plotted in {format_elapsed_time(end - start)}")
-            logging.info("Plotting figure for download")
+            logging.debug(f"Plotted data in {format_elapsed_time(end - start)}")
+            logging.debug("Setting figure properties")
+            ax.set_xlim(st.session_state.figure_properties.x_axis.min, st.session_state.figure_properties.x_axis.max)
+            ax.set_ylim(st.session_state.figure_properties.y_axis.min, st.session_state.figure_properties.y_axis.max)
+            ax.set_xlabel(
+                process_units(st.session_state.figure_properties.x_axis.label),
+                fontsize=st.session_state.figure_properties.x_axis.font_size,
+            )
+            ax.set_ylabel(
+                process_units(st.session_state.figure_properties.y_axis.label),
+                fontsize=st.session_state.figure_properties.y_axis.font_size,
+            )
+            if show_legend:
+                legend_opts = {
+                    "loc": st.session_state.figure_properties.legend.position.lower(),
+                    "fontsize": st.session_state.figure_properties.legend.font_size,
+                }
+                if not st.session_state.figure_properties.legend.auto_color:
+                    legend_opts["facecolor"] = st.session_state.figure_properties.legend.background_color
+                    legend_opts["framealpha"] = st.session_state.figure_properties.legend.opacity
+                ax.legend(
+                    **legend_opts,
+                )
+            ax.set_title(
+                process_units(st.session_state.figure_properties.title.text),
+                fontsize=st.session_state.figure_properties.title.font_size,
+            )
+            # ax.set_facecolor(st.session_state.background_color)
+            logging.info("Plotting figure for display")
             start = time.perf_counter_ns()
-            plot_file = io.BytesIO()
-            fmt = st.session_state.figure_properties.file_type.lower()
-            options = {
-                "bbox_inches" : "tight",
-                "format" : fmt,
-            }
-            if fmt == "png":
-                options["dpi"] = 300
-            plt.savefig(plot_file, **options)
-            plot_file.seek(0)
-            end = time.perf_counter_ns()
-            logging.info(f"Figure plotted in {format_elapsed_time(end - start)}")
+            f = io.BytesIO()
+            try:
+                plt.savefig(f, format="svg", bbox_inches = "tight")
+                f.seek(0)
 
-            # sidebar download button
-            st.sidebar.download_button(
-                "Download",
-                plot_file,
-                f"{st.session_state.figure_properties.filename}.{st.session_state.file_format.lower()}",
-                key="download",
-                type="primary"
-            )
-        except Exception as e:
-            st.error(handle_latex_error(e))
+                data = base64.b64encode(f.read()).decode("utf-8")
+                st.write(
+                    f'<img src="data:image/svg+xml;base64,{data}" alt="Plot" class="img-fluid" style="width: 100%;">',
+                    unsafe_allow_html=True,
+                )
+                end = time.perf_counter_ns()
+                logging.info(f"Figure plotted in {format_elapsed_time(end - start)}")
+                logging.info("Plotting figure for download")
+                start = time.perf_counter_ns()
+                plot_file = io.BytesIO()
+                fmt = st.session_state.figure_properties.file_type.lower()
+                options = {
+                    "bbox_inches" : "tight",
+                    "format" : fmt,
+                }
+                if fmt == "png":
+                    options["dpi"] = 300
+                plt.savefig(plot_file, **options)
+                plot_file.seek(0)
+                end = time.perf_counter_ns()
+                logging.info(f"Figure plotted in {format_elapsed_time(end - start)}")
+
+                # sidebar download button
+                st.sidebar.download_button(
+                    "Download",
+                    plot_file,
+                    f"{st.session_state.figure_properties.filename}.{st.session_state.file_format.lower()}",
+                    key="download",
+                    type="primary"
+                )
+            except Exception as e:
+                st.error(handle_latex_error(e))
