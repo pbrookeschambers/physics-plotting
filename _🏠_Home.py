@@ -240,7 +240,7 @@ def update_data(series: DataSeries, key: str):
             series.y = np.append(series.y, 0)
         else:
             series.y = np.append(series.y, float(row["1"]))
-        
+    update_fit(series, series.line_of_best_fit.fit_type, series.line_of_best_fit.show)
 
 
 
