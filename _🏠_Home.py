@@ -227,7 +227,10 @@ def update_data(series: DataSeries, key: str):
                     return
             else:
                 raise ValueError(f"Invalid column index: {column}")
-    for row in changed["deleted_rows"]:
+    to_remove = changed["deleted_rows"]
+    # sort reversed so that the indices don't change
+    to_remove.sort(reverse=True)
+    for row in to_remove:
         series.x = np.delete(series.x, row)
         series.y = np.delete(series.y, row)
     for row in changed["added_rows"]:
