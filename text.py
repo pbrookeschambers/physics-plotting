@@ -1,5 +1,8 @@
 import re
 from typing import List
+import streamlit as st
+
+from errors import handle_format_error
 
 prefixes = {
     "kilo": "k",
@@ -138,6 +141,7 @@ def process_units(text: str) -> str:
 
 def process_fit(text: str, fit_params: List[float]) -> str:
     # parameter names are always "a", "b", etc. Create a dictionary mapping these to the fit parameters
+    text_original = text
     params = {}
     for i, param in enumerate(fit_params):
         params[chr(ord("a") + i)] = param
@@ -145,6 +149,11 @@ def process_fit(text: str, fit_params: List[float]) -> str:
     # temporarily replace fit parameters with fit(...), then replace the braces, then replace fit(...) with the actual fit parameters ready for format
     text = re.sub("fit\{(.*?)\}", r"fit(\1)", text)
     text = text.replace("{", "{{").replace("}", "}}")
-    text = text.replace("fit(", "{").replace(")", "}")
-    text = text.format(**params)
+    text = text.replace("fit(", "{").replace(")", "}")#
+    try:
+        text = text.format(**params)
+    except Exception as e:
+        err = handle_format_error(e, text_original)
+        st.error(err)
+        return ""
     return text

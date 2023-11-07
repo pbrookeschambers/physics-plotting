@@ -78,3 +78,15 @@ Check that you have used one of the supported formats to separate your values: c
 ```
 {exception.args[0]}
 ```"""
+
+def handle_format_error(e, text: str) -> str:
+    return f"""**Error**
+
+There was a problem substituting the values into the string you provided:
+```
+{text}
+```
+Please check that it is a valid string. The full error message is:
+```
+{e.args[0]}
+```"""

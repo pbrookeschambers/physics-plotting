@@ -6,6 +6,12 @@ import matplotlib.pyplot as plt
 import qoplots.qoplots as qp
 import re
 from contextlib import nullcontext
+import logging
+logging.basicConfig(
+    level=logging.INFO, 
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+import time
 
 from data import DataSeries, FigureProperties, LegendEntry, Line, LineOfBestFit, Marker
 from constants import MarkerStyles, LineStyles
@@ -13,7 +19,43 @@ from fitting import fit, get_fitted_data
 from text import process_fit, process_units
 from errors import handle_data_error, handle_fit_error, handle_latex_error
 
+def format_elapsed_time(t_ns: float):
+    # time is in nanoseconds, format in an appropriate unit to 3 significant figures (NOT 3 decimal places)
+    timestring = None
+    unit = None
+    if t_ns < 1e3:
+        # return f"{t_ns:#.3g} ns"
+        timestring = f"{t_ns:#.3g}"
+        unit = "ns"
+    elif t_ns < 1e6:
+        # return f"{t_ns / 1e3:#.3g} \xb5s"
+        timestring = f"{t_ns / 1e3:#.3g}"
+        unit = "\xb5s"
+    elif t_ns < 1e9:
+        # return f"{t_ns / 1e6:#.3g} ms"
+        timestring = f"{t_ns / 1e6:#.3g}"
+        unit = "ms"
+    elif t_ns < 60e9:
+        # return f"{t_ns / 1e9:#.3g} s"
+        timestring = f"{t_ns / 1e9:#.3g}"
+        unit = "s"
+    elif t_ns < 60e9 * 60:
+        # return as ##m ##s
+        m = int(t_ns / 60e9)
+        s = int((t_ns - m * 60e9) / 1e9)
+        return f"{m}m {s:0>2d}s"
+    else:
+        # return as ##h ##m ##s. I really hope we never need this
+        h = int(t_ns / 3600e9)
+        m = int((t_ns - h * 3600e9) / 60e9)
+        s = int((t_ns - h * 3600e9 - m * 60e9) / 1e9)
+        return f"{h}h {m:0>2d}m {s:0>2d}s"
 
+    if timestring.endswith("."):
+        timestring = timestring[:-1]
+    return timestring + " " + unit
+
+logging.info("Starting App")
 
 # Setup ---------------------------------------
 
@@ -23,8 +65,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-
 
 st.markdown("""<style>
     div[data-testid="stColorBlock"] {
@@ -38,7 +78,11 @@ st.markdown("""<style>
     unsafe_allow_html=True,)
 
 def set_theme(theme):
+    logging.info(f"Setting theme to {theme}...")
+    start = time.perf_counter_ns()
     qp.init(theme.lower().replace(" ", "_"), "light", "report")
+    end = time.perf_counter_ns()
+    logging.info(f"Theme set in {format_elapsed_time(end - start)}")
 
 
 def change_active_series(name: str):
@@ -69,18 +113,21 @@ def add_new_data():
         return
     if len(x_data) != len(y_data):
         st.error("The number of $x$-values must match the number of $y$-values.")
+        logging.error(f"Number of x-values ({len(x_data)}) does not match number of y-values ({len(y_data)}).")
         return
     try:
         x_data = np.array([float(x) for x in x_data])
         y_data = np.array([float(y) for y in y_data])
     except ValueError:
         st.error("The data must be numeric.")
+        logging.error("Data is not numeric.")
         return
     new_name = st.session_state.new_name
     # check if the name is already taken
     for s in st.session_state.data_series:
         if s.name == new_name:
             st.error("A data series with that name already exists.")
+            logging.error(f"Data series with name {new_name} already exists.")
             return
     # clear the new data
     st.session_state.new_x_data = ""
@@ -892,7 +939,10 @@ set_theme(st.session_state.theme)
 
 with plot_col:
     if len(st.session_state.data_series) > 0:
+        logging.debug("Creating empty figure")
         fig, ax = plt.subplots()
+        logging.debug("Plotting data")
+        start = time.perf_counter_ns()
         for s in st.session_state.data_series:
             x_data = s.x
             y_data = s.y
@@ -938,6 +988,9 @@ with plot_col:
                     **legend,
                     **line,
                 )
+        end = time.perf_counter_ns()
+        logging.debug(f"Plotted data in {format_elapsed_time(end - start)}")
+        logging.debug("Setting figure properties")
         ax.set_xlim(st.session_state.figure_properties.x_axis.min, st.session_state.figure_properties.x_axis.max)
         ax.set_ylim(st.session_state.figure_properties.y_axis.min, st.session_state.figure_properties.y_axis.max)
         ax.set_xlabel(
@@ -964,6 +1017,8 @@ with plot_col:
             fontsize=st.session_state.figure_properties.title.font_size,
         )
         # ax.set_facecolor(st.session_state.background_color)
+        logging.info("Plotting figure for display")
+        start = time.perf_counter_ns()
         f = io.BytesIO()
         try:
             plt.savefig(f, format="svg", bbox_inches = "tight")
@@ -974,6 +1029,10 @@ with plot_col:
                 f'<img src="data:image/svg+xml;base64,{data}" alt="Plot" class="img-fluid" style="width: 100%;">',
                 unsafe_allow_html=True,
             )
+            end = time.perf_counter_ns()
+            logging.info(f"Figure plotted in {format_elapsed_time(end - start)}")
+            logging.info("Plotting figure for download")
+            start = time.perf_counter_ns()
             plot_file = io.BytesIO()
             fmt = st.session_state.figure_properties.file_type.lower()
             options = {
@@ -984,6 +1043,8 @@ with plot_col:
                 options["dpi"] = 300
             plt.savefig(plot_file, **options)
             plot_file.seek(0)
+            end = time.perf_counter_ns()
+            logging.info(f"Figure plotted in {format_elapsed_time(end - start)}")
 
             # sidebar download button
             st.sidebar.download_button(
