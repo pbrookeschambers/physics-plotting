@@ -4,52 +4,85 @@ from dataclasses import dataclass
 from constants import MarkerStyles, LineStyles
 
 @dataclass
+class Color:
+    auto_color: bool
+    color: str
+    opacity: float = 1
+
+    def to_dict(self):
+        return {
+            "auto_color": self.auto_color,
+            "color": self.color,
+            "opacity": self.opacity,
+        }
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(
+            auto_color=d["auto_color"],
+            color=d["color"],
+            opacity=d["opacity"],
+        )
+    
+    def __getitem__(self, key):
+        return getattr(self, key)
+    
+    @classmethod
+    def default(cls, white = False):
+        return cls(
+            auto_color=True,
+            color="#ffffff" if white else "#000000",
+            opacity=1,
+        )
+
+@dataclass
 class Marker:
     style: MarkerStyles
-    color: str
+    color: Color
     size: float
-    auto_color: bool = True
 
     def to_dict(self):
         return {
             "style": self.style.name,
-            "color": self.color,
+            "color": self.color.to_dict(),
             "size": self.size,
-            "auto_color": self.auto_color,
         }
 
     @classmethod
     def from_dict(cls, d):
         return cls(
             style=getattr(MarkerStyles, d["style"]),
-            color=d["color"],
+            color = Color.from_dict(d["color"]),
             size=d["size"],
-            auto_color=d["auto_color"],
         )
+    
+    # allow marker["style"] etc
+    def __getitem__(self, key):
+        return getattr(self, key)
 
 @dataclass
 class Line:
     style: LineStyles
-    color: str
+    color: Color
     width: float
-    auto_color: bool = True
 
     def to_dict(self):
         return {
             "style": self.style.name,
-            "color": self.color,
+            "color": self.color.to_dict(),
             "width": self.width,
-            "auto_color": self.auto_color,
         }
 
     @classmethod
     def from_dict(cls, d):
         return cls(
             style=getattr(LineStyles, d["style"]),
-            color=d["color"],
+            color=Color.from_dict(d["color"]),
             width=d["width"],
-            auto_color=d["auto_color"],
         )
+    
+    def __getitem__(self, key):
+        return getattr(self, key)
     
 @dataclass
 class LegendEntry:
@@ -72,6 +105,9 @@ class LegendEntry:
             attempt_render=d["attempt_render"],
         )
 
+    def __getitem__(self, key):
+        return getattr(self, key)
+
 @dataclass
 class LineOfBestFit:
     show: bool
@@ -79,7 +115,6 @@ class LineOfBestFit:
     fit_type: str
     fit_params: List[float]
     legend_entry: LegendEntry
-    auto_color: bool = True
     attempt_plot: bool = True
 
     def to_dict(self):
@@ -88,7 +123,6 @@ class LineOfBestFit:
             "line": self.line.to_dict(),
             "fit_type": self.fit_type,
             "fit_params": self.fit_params.tolist() if isinstance(self.fit_params, np.ndarray) else self.fit_params,
-            "auto_color": self.auto_color,
             "legend_entry": self.legend_entry.to_dict(),
             "attempt_plot": self.attempt_plot,
         }
@@ -100,10 +134,12 @@ class LineOfBestFit:
             line=Line.from_dict(d["line"]),
             fit_type=d["fit_type"],
             fit_params=d["fit_params"],
-            auto_color=d["auto_color"],
             legend_entry=LegendEntry.from_dict(d["legend_entry"]),
             attempt_plot=d["attempt_plot"],
         )
+    
+    def __getitem__(self, key):
+        return getattr(self, key)
 
 @dataclass
 class DataSeries:
@@ -152,6 +188,9 @@ class DataSeries:
             line_of_best_fit=LineOfBestFit.from_dict(d["line_of_best_fit"]),
             attempt_plot=d["attempt_plot"],
         )
+    
+    def __getitem__(self, key):
+        return getattr(self, key)
 
 @dataclass
 class AxisProperties:
@@ -179,6 +218,9 @@ class AxisProperties:
             font_size=d["font_size"],
             attempt_render=d["attempt_render"],
         )
+    
+    def __getitem__(self, key):
+        return getattr(self, key)
 
 @dataclass
 class TitleProperties:
@@ -200,24 +242,23 @@ class TitleProperties:
             font_size=d["font_size"],
             attempt_render=d["attempt_render"],
         )
+    
+    def __getitem__(self, key):
+        return getattr(self, key)
 
 @dataclass
 class LegendProperties:
     show: bool
     position: str
     font_size: float
-    background_color: str
-    opacity: float
-    auto_color: bool = True
+    background_color: Color
 
     def to_dict(self):
         return {
             "show": self.show,
             "position": self.position,
             "font_size": self.font_size,
-            "background_color": self.background_color,
-            "opacity": self.opacity,
-            "auto_color": self.auto_color,
+            "background_color": self.background_color.to_dict(),
         }
     
     @classmethod
@@ -226,10 +267,11 @@ class LegendProperties:
             show=d["show"],
             position=d["position"],
             font_size=d["font_size"],
-            background_color=d["background_color"],
-            opacity=d["opacity"],
-            auto_color=d["auto_color"],
+            background_color=Color.from_dict(d["background_color"]),
         )
+    
+    def __getitem__(self, key):
+        return getattr(self, key)
 
 
 @dataclass
@@ -287,8 +329,7 @@ class FigureProperties:
             True,
             "Best",
             14,
-            "#ffffff",
-            1.0,
+            Color.default(white = True)
         )
         filename = "figure"
         file_type = "pdf"
@@ -301,3 +342,9 @@ class FigureProperties:
             file_type=file_type,
             theme="Newcastle",
         )
+    
+    def __getitem__(self, key):
+        return getattr(self, key)
+
+    def is_default(self) -> bool:
+        return self == FigureProperties.default()

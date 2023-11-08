@@ -1,0 +1,3 @@
+You can start a new figure at any time. Before you do, it is recommended that you save a local copy of the data for your current plot, so that you can restore it at a later date. Otherwise, it will be lost. See the [Saving And Loading Data](#saving-and-loading-data) section above.
+
+To start a new figure, expand the sidebar and scroll to the bottom "Advanced" section. Here, click teh "New Figure" button. This will clear all current data and figure properties, and you will be left with a blank canvas.

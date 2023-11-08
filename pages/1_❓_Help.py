@@ -15,11 +15,12 @@ st.set_page_config(
 
 st.markdown("""# Plotting Help
             
-**Note: Refreshing the page will clear all of your work.** To avoid this, see the Saving And Loading section below.
-            
-This app is designed to help you create well-formatted plots. It was created by Peter Brookes Chambers (p.brookes-chambers1@newcastle.ac.uk) using Streamlit.
+
+***:blue[Note:]** All work is stored as plain text in an unencrypted format. **:red[Never]** store any sensitive information in your plots.*
+
+This app is designed to help physics students create well-formatted plots. It was created by Peter Brookes Chambers (p.brookes-chambers1@newcastle.ac.uk) using Streamlit.
          
-This page is designed to help you get started with the app and create plots. For a more technical description of the app, please see the Docs page.""")
+This page should help you get started with the app and create plots. For a more technical description of the app, please see the Docs page.""")
 
 cols = st.columns(3)
 
@@ -72,7 +73,7 @@ def add_section(section_dir):
     files = sorted(files)
     logging.info(files)
     for f in files:
-        with st.expander(f[3:-3].replace("_", " ").title()):
+        with st.expander("##### " + f[3:-3].replace("_", " ").title()):
             with open(os.path.join("pages/help_sections", section_dir, f)) as f:
                 st.markdown(f.read())
 
@@ -81,5 +82,6 @@ with cols[0]:
     add_section(sections[1])
 with cols[1]:
     add_section(sections[2])
-with cols[2]:
     add_section(sections[3])
+with cols[2]:
+    add_section(sections[4])

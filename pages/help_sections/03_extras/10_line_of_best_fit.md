@@ -1,10 +1,10 @@
 A line of best fit can be added to any data series. If the sidebar on the left is not already shown, expand it using the small right arrow in the top left. Under "Options" in the "Data" section, you will see a dropdown to select the data series you want to edit. If you only have one set of data, this dropdown will not be shown.
 
-##### Enable line of best fit
+###### Enable line of best fit
 
 Below the expandable "Data Series" section is a switch to enable the line of best fit. Enabling it will add a line of best fit with the default settings (which is linear). Disabling it will remove the line of best fit, but keep any settings you have changed.
 
-##### Line of best fit type
+###### Line of best fit type
 
 Once enabled, an expandable "Line of Best Fit" section will be shown. Expand it to see a dropdown for the fit type. There are six options:
 - Linear, $y = a x + b$
@@ -16,13 +16,13 @@ Once enabled, an expandable "Line of Best Fit" section will be shown. Expand it 
 
 Choosing an option will update the fit on the plot. There are a few ways this can fail, but primarily each fit type expects a minimum number of data points. Make sure your data has enough points for the fit type you want to use. You'll be notified if that is not the case.
 
-##### Line Options
+###### Line Options
 
-Under the "Line" heading, you'll find options for the line styling of the line of best fit. These are identical to the options for the data series line style. See the Line Styles section for more information.
+Under the "Line" heading, you'll find options for the line styling of the line of best fit. These are identical to the options for the data series line style. See the [Line Styles](#line-styles) section for more information.
 
-##### Legend Entry
+###### Legend Entry
 
-The line of best fit can be included in the legend. To do so, enable the "Show in Legend" switch. This will show an additional field for the legend entry. See the sections Maths In Text and Units In Text for more information on formatting this.
+The line of best fit can be included in the legend. To do so, enable the "Show in Legend" switch. This will show an additional field for the legend entry. See the sections [Maths In Text](#maths-in-text) and [Units In Text](#units-in-text) for more information on formatting this.
 
 ###### Including Fit Parameters
 
