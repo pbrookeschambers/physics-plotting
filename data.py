@@ -378,12 +378,18 @@ class DataSeries:
         if self.line_of_best_fit.show:
             series["line_of_best_fit"] = self.line_of_best_fit.to_plot_json()
         return series
+
     def to_csv(self) -> str:
         # return the x and y data as a csv string
         csv = StringIO()
         for x, y in zip(self.x, self.y):
             csv.write(f"{x}, {y}\n")
         return csv.getvalue()
+
+    def reset_data(self):
+        self.x = self.x_original.copy()
+        self.y = self.y_original.copy()
+
 
 @dataclass
 class AxisProperties:

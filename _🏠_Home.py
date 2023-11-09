@@ -51,6 +51,20 @@ from persistance import (
 )
 
 
+
+def add_transparency(color, opacity):
+    # color is in hex format, opacity is 0 to 1
+    # returns the colour as (r,g,b,a)
+    if color.startswith("#"):
+        color = color[1:]
+    if len(color) == 3:
+        color = "".join([c + c for c in color])
+    if len(color) != 6:
+        raise ValueError("Invalid hex colour.")
+    r, g, b = color[:2], color[2:4], color[4:]
+    return (int(r, 16)/255, int(g, 16)/255, int(b, 16)/255, opacity)
+
+
 def format_elapsed_time(t_ns: float):
     # time is in nanoseconds, format in an appropriate unit to 3 significant figures (NOT 3 decimal places)
     timestring = None
@@ -94,6 +108,7 @@ logging.info("Starting App")
 
 
 key = get_key()
+st.session_state.key_cookie = key
 
 if not "should_load" in st.session_state:
     st.session_state.should_load = True
@@ -283,6 +298,181 @@ def update_data(series: DataSeries, key: str):
         else:
             series.y = np.append(series.y, float(row["1"]))
     update_fit(series, series.line_of_best_fit.fit_type, series.line_of_best_fit.show)
+
+
+# plot
+@st.cache_data
+def plot(data_series, figure_properties):
+    fig, ax = plt.subplots()
+    for s in data_series:
+        x_data = s.x
+        y_data = s.y
+        legend = {}
+        if s.legend_entry.show:
+            legend["label"] = process_units(s.legend_entry.label)
+        marker = {
+            "marker": s.marker.style.value,
+            "markersize": s.marker.size,
+        }
+        if s.marker.color.auto_color or s.line.color.auto_color:
+            # get the next colour from the matplotlib cycler
+            next_color = ax._get_lines.get_next_color()
+        if s.marker.color.auto_color:
+            marker["markerfacecolor"] = add_transparency(next_color, s.marker.color.opacity)
+            marker["markeredgecolor"] = add_transparency(next_color, s.marker.color.opacity)
+        else:
+            marker["markerfacecolor"] = add_transparency(s.marker.color.color, s.marker.color.opacity)
+            marker["markeredgecolor"] = add_transparency(s.marker.color.color, s.marker.color.opacity)
+        line = {
+            "linestyle": s.line.style.value,
+            "linewidth": s.line.width,
+        }
+        if s.line.color.auto_color:
+            line["color"] = add_transparency(next_color, s.line.color.opacity)
+        else:
+            line["color"] = add_transparency(s.line.color.color, s.line.color.opacity)
+        ax.plot(
+            x_data,
+            y_data,
+            **legend,
+            **marker,
+            **line,
+        )
+
+        # line of best fit
+        if not s.line_of_best_fit.show:
+            continue
+
+        x_temp = np.linspace(x_data.min(), x_data.max(), max(100, len(x_data)))
+        y_temp = get_fitted_data(
+            x_temp,
+            s.line_of_best_fit.fit_type,
+            s.line_of_best_fit.fit_params,
+        )
+        legend = (
+            {
+                "label": process_fit(
+                    process_units(s.line_of_best_fit.legend_entry.label),
+                    s.line_of_best_fit.fit_params,
+                ),
+            }
+            if s.line_of_best_fit.legend_entry.show
+            else {}
+        )
+        line = {
+            "linestyle": s.line_of_best_fit.line.style.value,
+            "linewidth": s.line_of_best_fit.line.width,
+        }
+        if s.line_of_best_fit.line.color.auto_color:
+            next_color = ax._get_lines.get_next_color()
+            line["color"] = add_transparency(next_color, s.line_of_best_fit.line.color.opacity)
+        else:
+            line["color"] = add_transparency(s.line_of_best_fit.line.color.color, s.line_of_best_fit.line.color.opacity)
+        ax.plot(
+            x_temp,
+            y_temp,
+            **legend,
+            **line,
+        )
+    ax.set_xlim(
+        figure_properties.x_axis.min,
+        figure_properties.x_axis.max,
+    )
+    ax.set_ylim(
+        figure_properties.y_axis.min,
+        figure_properties.y_axis.max,
+    )
+    ax.set_xlabel(
+        process_units(figure_properties.x_axis.label),
+        fontsize=figure_properties.x_axis.font_size,
+    )
+    ax.set_ylabel(
+        process_units(figure_properties.y_axis.label),
+        fontsize=figure_properties.y_axis.font_size,
+    )
+    if figure_properties.legend.show:
+        legend_opts = {
+            "loc": figure_properties.legend.position.lower(),
+            "fontsize": figure_properties.legend.font_size,
+        }
+        if not figure_properties.legend.background_color.auto_color:
+            legend_opts["facecolor"] = figure_properties.legend.background_color.color
+            legend_opts[
+                "framealpha"
+            ] = figure_properties.legend.background_color.opacity
+        ax.legend(
+            **legend_opts,
+        )
+    ax.set_title(
+        process_units(figure_properties.title.text),
+        fontsize=figure_properties.title.font_size,
+    )
+    f_svg = io.BytesIO()
+    try:
+        plt.savefig(f_svg, format="svg", bbox_inches="tight")
+        f_svg.seek(0)
+        data_svg = base64.b64encode(f_svg.read()).decode("utf-8")
+    except Exception as e:
+        st.error(handle_latex_error(e))
+        data_svg = None
+    f_download = io.BytesIO()
+    fmt = figure_properties.file_type.lower()
+    options = {
+        "bbox_inches": "tight",
+        "format": fmt,
+    }
+    if fmt == "png":
+        options["dpi"] = 300
+    try:
+        plt.savefig(f_download, **options)
+        f_download.seek(0)
+    except Exception as e:
+        st.error(handle_latex_error(e))
+        f_download = None
+    return data_svg, f_download
+
+def confirm(
+        confirmation_message: str,
+        on_confirm: callable,
+        on_cancel: callable = None,
+        confirm_text: str = "Confirm",
+        cancel_text: str = "Cancel",
+):
+    def _on_confirm():
+        st.session_state.getting_confirmation = False
+        on_confirm()
+    def _on_cancel():
+        st.session_state.getting_confirmation = False
+        if on_cancel is not None:
+            on_cancel()
+    st.session_state.getting_confirmation = True
+    st.session_state.confirmation_message = confirmation_message
+    st.session_state.confirmation_on_confirm = _on_confirm
+    st.session_state.confirmation_on_cancel = _on_cancel
+    st.session_state.confirmation_confirm_text = confirm_text
+    st.session_state.confirmation_cancel_text = cancel_text
+
+def get_confirmation(
+        confirmation_message: str,
+        on_confirm: callable,
+        on_cancel: callable = None,
+        confirm_text: str = "Confirm",
+        cancel_text: str = "Cancel",
+):
+    st.header("Are you sure?")
+    st.write(confirmation_message)
+    cols = st.columns(2)
+    with cols[0]:
+        if st.button(confirm_text, type = "primary"):
+            on_confirm()
+            st.rerun()
+    with cols[1]:
+        if st.button(cancel_text):
+            if on_cancel is not None:
+                on_cancel()
+                st.rerun()
+            else:
+                st.rerun()
 
 
 if st.session_state.should_load:
@@ -878,307 +1068,209 @@ else:
 
 # Main ----------------------------------------
 
-plot_col, data_col = st.columns([0.6, 0.4])
+def main_panes():
+    plot_col, data_col = st.columns([0.6, 0.4])
 
-plot_col.header("Plot")
+    plot_col.header("Plot")
 
-data_col.header("Data")
+    data_col.header("Data")
 
-with data_col:
-    current_data, new_data = st.tabs(["Current Data", "Add New Data"])
-    with current_data:
-        if len(st.session_state.data_series) == 0:
-            st.markdown("No data series added. Add a data series to get started.")
-        else:
-            expanders = []
-            for s in st.session_state.data_series:
-                if len(st.session_state.data_series) == 1:
-                    expanders.append(nullcontext())
-                else:
-                    expanders.append(st.expander(s.name, expanded=False))
-                with expanders[-1]:
-                    left, right = st.columns(2)
-                    name = st.text_input(
-                        "Name",
-                        s.name,
-                        key=f"{s.name}_name",
-                        on_change=lambda: setattr(
-                            s, "name", st.session_state[f"{s.name}_name"]
-                        ),
+    with data_col:
+        current_data, new_data = st.tabs(["Current Data", "Add New Data"])
+        with current_data:
+            if len(st.session_state.data_series) == 0:
+                st.markdown("No data series added. Add a data series to get started.")
+            else:
+                expanders = []
+                for s in st.session_state.data_series:
+                    if len(st.session_state.data_series) == 1:
+                        expanders.append(nullcontext())
+                    else:
+                        expanders.append(st.expander(s.name, expanded=False))
+                    with expanders[-1]:
+                        left, right = st.columns(2)
+                        name = st.text_input(
+                            "Name",
+                            s.name,
+                            key=f"{s.name}_name",
+                            on_change=lambda: setattr(
+                                s, "name", st.session_state[f"{s.name}_name"]
+                            ),
+                        )
+                        data = np.array([s.x, s.y]).T
+                        st.data_editor(
+                            data,
+                            use_container_width=True,
+                            key=f"{s.name}_data",
+                            on_change=update_data,
+                            args=(s, f"{s.name}_data"),
+                            column_config={"0": "x", "1": "y"},
+                            num_rows="dynamic",
+                        )
+                        left, right = st.columns(2)
+                        with left:
+                            # Delete button
+                            st.button(
+                                "🗑️ Delete Series",
+                                key=f"{s.name}_delete",
+                                type="primary",
+                                on_click=confirm,
+                                args=(
+                                    "Are you sure you want to delete this data series? :red[This cannot be undone].",
+                                    lambda: delete_series(s.name),
+                                    None,
+                                    "Delete",
+                                    "Cancel",
+                                ),
+                                help="Delete the **entire** data series. :red[This cannot be undone].",
+                            )
+                            
+                        with right:
+                            # reset button
+                            st.button(
+                                "🔄 Reset Data",
+                                key=f"{s.name}_reset",
+                                on_click=confirm,
+                                args=(
+                                    "Are you sure you want to reset this data series? All changes will be lost. :red[This cannot be undone].",
+                                    lambda: s.reset_data(),
+                                    None,
+                                    "Reset",
+                                    "Cancel",
+                                ),
+                                help="Reset the data to the original values. :red[This cannot be undone].",
+                            )
+        with new_data:
+            # new data name
+            new_name = st.text_input(
+                "Name",
+                f"Data Series {len(st.session_state.data_series) + 1}",
+                key="new_name",
+            )
+            new_x, new_y = st.columns(2)
+            with new_x:
+                x_data = st.text_area(
+                    "X Data",
+                    key="new_x_data",
+                    help="Paste your $x$-data here, with each value on a new line. \nDo not include the header row.",
+                    height=300,
+                )
+            with new_y:
+                y_data = st.text_area(
+                    "Y Data",
+                    key="new_y_data",
+                    help="Paste your $y$-data here, with each value on a new line. \nDo not include the header row.",
+                    height=300,
+                )
+            # add button
+            st.button("Add Data", key="add_data", on_click=add_new_data)
+
+    if len(st.session_state.data_series) > 0:
+        set_theme(st.session_state.theme)
+
+
+
+    with plot_col:
+        with st.spinner("Generating Plot"):
+            # time.sleep(20)
+            if len(st.session_state.data_series) > 0:
+                start = time.perf_counter_ns()
+                svg_data, download_data = plot(
+                    st.session_state.data_series,
+                    st.session_state.figure_properties,
+                )
+                end = time.perf_counter_ns()
+                logging.info(f"Plot generated in {format_elapsed_time(end - start)}")
+                if svg_data is not None:
+                    st.write(
+                        f'<img src="data:image/svg+xml;base64,{svg_data}" alt="Plot" class="img-fluid" style="width: 100%;">',
+                        unsafe_allow_html=True,
                     )
-                    data = np.array([s.x, s.y]).T
-                    st.data_editor(
-                        data,
-                        use_container_width=True,
-                        key=f"{s.name}_data",
-                        on_change=update_data,
-                        args=(s, f"{s.name}_data"),
-                        column_config={"0": "x", "1": "y"},
-                        num_rows="dynamic",
-                    )
-                    # delete button
-                    st.button(
-                        "🗑️ Delete Series",
-                        key=f"{s.name}_delete",
+                if download_data is not None:
+                    st.sidebar.download_button(
+                        "Download",
+                        download_data,
+                        f"{st.session_state.figure_properties.filename}.{st.session_state.file_format.lower()}",
+                        key="download",
                         type="primary",
-                        on_click=delete_series,
-                        args=(s.name,),
-                        help="Delete the **entire** data series. :red[This cannot be undone].",
+                        help="Download the figure in the specified file format.",
+                        use_container_width=True,
                     )
-    with new_data:
-        # new data name
-        new_name = st.text_input(
-            "Name",
-            f"Data Series {len(st.session_state.data_series) + 1}",
-            key="new_name",
-        )
-        new_x, new_y = st.columns(2)
-        with new_x:
-            x_data = st.text_area(
-                "X Data",
-                key="new_x_data",
-                help="Paste your $x$-data here, with each value on a new line. \nDo not include the header row.",
-                height=300,
-            )
-        with new_y:
-            y_data = st.text_area(
-                "Y Data",
-                key="new_y_data",
-                help="Paste your $y$-data here, with each value on a new line. \nDo not include the header row.",
-                height=300,
-            )
-        # add button
-        st.button("Add Data", key="add_data", on_click=add_new_data)
+        # st.write(get_all_cookies())
+        # logging.info(get_all_cookies())
 
-if len(st.session_state.data_series) > 0:
-    set_theme(st.session_state.theme)
+    st.sidebar.divider()
+    st.sidebar.header("Advanced")
 
-def add_transparency(color, opacity):
-    # color is in hex format, opacity is 0 to 1
-    # returns the colour as (r,g,b,a)
-    if color.startswith("#"):
-        color = color[1:]
-    if len(color) == 3:
-        color = "".join([c + c for c in color])
-    if len(color) != 6:
-        raise ValueError("Invalid hex colour.")
-    r, g, b = color[:2], color[2:4], color[4:]
-    return (int(r, 16)/255, int(g, 16)/255, int(b, 16)/255, opacity)
-
-# plot
-@st.cache_data
-def plot(data_series, figure_properties):
-    fig, ax = plt.subplots()
-    for s in data_series:
-        x_data = s.x
-        y_data = s.y
-        legend = {}
-        if s.legend_entry.show:
-            legend["label"] = process_units(s.legend_entry.label)
-        marker = {
-            "marker": s.marker.style.value,
-            "markersize": s.marker.size,
-        }
-        if s.marker.color.auto_color or s.line.color.auto_color:
-            # get the next colour from the matplotlib cycler
-            next_color = ax._get_lines.get_next_color()
-        if s.marker.color.auto_color:
-            marker["markerfacecolor"] = add_transparency(next_color, s.marker.color.opacity)
-            marker["markeredgecolor"] = add_transparency(next_color, s.marker.color.opacity)
-        else:
-            marker["markerfacecolor"] = add_transparency(s.marker.color.color, s.marker.color.opacity)
-            marker["markeredgecolor"] = add_transparency(s.marker.color.color, s.marker.color.opacity)
-        line = {
-            "linestyle": s.line.style.value,
-            "linewidth": s.line.width,
-        }
-        if s.line.color.auto_color:
-            line["color"] = add_transparency(next_color, s.line.color.opacity)
-        else:
-            line["color"] = add_transparency(s.line.color.color, s.line.color.opacity)
-        ax.plot(
-            x_data,
-            y_data,
-            **legend,
-            **marker,
-            **line,
-        )
-
-        # line of best fit
-        if not s.line_of_best_fit.show:
-            continue
-
-        x_temp = np.linspace(x_data.min(), x_data.max(), max(100, len(x_data)))
-        y_temp = get_fitted_data(
-            x_temp,
-            s.line_of_best_fit.fit_type,
-            s.line_of_best_fit.fit_params,
-        )
-        legend = (
+    if len(st.session_state.data_series) > 0:
+        json_data = json.dumps(
             {
-                "label": process_fit(
-                    process_units(s.line_of_best_fit.legend_entry.label),
-                    s.line_of_best_fit.fit_params,
-                ),
+                "data_series": [s.to_dict() for s in st.session_state.data_series],
+                "figure_properties": st.session_state.figure_properties.to_dict(),
             }
-            if s.line_of_best_fit.legend_entry.show
-            else {}
         )
-        line = {
-            "linestyle": s.line_of_best_fit.line.style.value,
-            "linewidth": s.line_of_best_fit.line.width,
-        }
-        if s.line_of_best_fit.line.color.auto_color:
-            next_color = ax._get_lines.get_next_color()
-            line["color"] = add_transparency(next_color, s.line_of_best_fit.line.color.opacity)
-        else:
-            line["color"] = add_transparency(s.line_of_best_fit.line.color.color, s.line_of_best_fit.line.color.opacity)
-        ax.plot(
-            x_temp,
-            y_temp,
-            **legend,
-            **line,
+        left, right = st.sidebar.columns(2)
+        left.download_button(
+            "Download Data",
+            json_data,
+            st.session_state.figure_properties.filename + ".json",
+            key="download_data",
+            help="Download the data and settings as a .json file.",
+            use_container_width=True,
         )
-    ax.set_xlim(
-        figure_properties.x_axis.min,
-        figure_properties.x_axis.max,
-    )
-    ax.set_ylim(
-        figure_properties.y_axis.min,
-        figure_properties.y_axis.max,
-    )
-    ax.set_xlabel(
-        process_units(figure_properties.x_axis.label),
-        fontsize=figure_properties.x_axis.font_size,
-    )
-    ax.set_ylabel(
-        process_units(figure_properties.y_axis.label),
-        fontsize=figure_properties.y_axis.font_size,
-    )
-    if figure_properties.legend.show:
-        legend_opts = {
-            "loc": figure_properties.legend.position.lower(),
-            "fontsize": figure_properties.legend.font_size,
-        }
-        if not figure_properties.legend.background_color.auto_color:
-            legend_opts["facecolor"] = figure_properties.legend.background_color.color
-            legend_opts[
-                "framealpha"
-            ] = figure_properties.legend.background_color.opacity
-        ax.legend(
-            **legend_opts,
+        right.button(
+            "New Figure",
+            key="new",
+            help="Start a new plot. **:red[This will clear all current data.]**",
+            on_click=confirm,
+            args=(
+                "Are you sure you want to start a new figure? :red[This will clear all current data.]",
+                lambda: clear_data(st.session_state.key_cookie),
+            ),
+            type="primary",
+            use_container_width=True,
         )
-    ax.set_title(
-        process_units(figure_properties.title.text),
-        fontsize=figure_properties.title.font_size,
-    )
-    f_svg = io.BytesIO()
-    try:
-        plt.savefig(f_svg, format="svg", bbox_inches="tight")
-        f_svg.seek(0)
-        data_svg = base64.b64encode(f_svg.read()).decode("utf-8")
-    except Exception as e:
-        st.error(handle_latex_error(e))
-        data_svg = None
-    f_download = io.BytesIO()
-    fmt = figure_properties.file_type.lower()
-    options = {
-        "bbox_inches": "tight",
-        "format": fmt,
-    }
-    if fmt == "png":
-        options["dpi"] = 300
-    try:
-        plt.savefig(f_download, **options)
-        f_download.seek(0)
-    except Exception as e:
-        st.error(handle_latex_error(e))
-        f_download = None
-    return data_svg, f_download
-
-
-with plot_col:
-    with st.spinner("Generating Plot"):
-        # time.sleep(20)
-        if len(st.session_state.data_series) > 0:
-            start = time.perf_counter_ns()
-            svg_data, download_data = plot(
-                st.session_state.data_series,
-                st.session_state.figure_properties,
-            )
-            end = time.perf_counter_ns()
-            logging.info(f"Plot generated in {format_elapsed_time(end - start)}")
-            if svg_data is not None:
-                st.write(
-                    f'<img src="data:image/svg+xml;base64,{svg_data}" alt="Plot" class="img-fluid" style="width: 100%;">',
-                    unsafe_allow_html=True,
+    else:
+        # upload data
+        uploaded_file = st.sidebar.file_uploader("Upload Data", type=["json"])
+        if uploaded_file is not None:
+            try:
+                data = json.load(uploaded_file)
+                st.session_state.data_series = []
+                for s in data["data_series"]:
+                    st.session_state.data_series.append(DataSeries.from_dict(s))
+                st.session_state.figure_properties = FigureProperties.from_dict(
+                    data["figure_properties"]
                 )
-            if download_data is not None:
-                st.sidebar.download_button(
-                    "Download",
-                    download_data,
-                    f"{st.session_state.figure_properties.filename}.{st.session_state.file_format.lower()}",
-                    key="download",
-                    type="primary",
-                    help="Download the figure in the specified file format.",
-                    use_container_width=True,
-                )
-    # st.write(get_all_cookies())
-    # logging.info(get_all_cookies())
+                st.rerun()
+            except Exception as e:
+                st.error(handle_json_error(e))
+                raise (e)
 
-st.sidebar.divider()
-st.sidebar.header("Advanced")
+    # save the data
+    if (
+        len(st.session_state.data_series) > 0
+        or not st.session_state.figure_properties.is_default()
+    ):
+        save_data(
+            key,
+            st.session_state.data_series,
+            st.session_state.figure_properties,
+        )
+    clean_old_files()
 
-if len(st.session_state.data_series) > 0:
-    json_data = json.dumps(
-        {
-            "data_series": [s.to_dict() for s in st.session_state.data_series],
-            "figure_properties": st.session_state.figure_properties.to_dict(),
-        }
-    )
-    left, right = st.sidebar.columns(2)
-    left.download_button(
-        "Download Data",
-        json_data,
-        st.session_state.figure_properties.filename + ".json",
-        key="download_data",
-        help="Download the data and settings as a .json file.",
-        use_container_width=True,
-    )
-    right.button(
-        "New Figure",
-        key="new",
-        help="Start a new plot. **:red[This will clear all current data.]**",
-        on_click=clear_data,
-        args=(key,),
-        type="primary",
-        use_container_width=True,
-    )
+if "getting_confirmation" not in st.session_state:
+    st.session_state.getting_confirmation = False
+
+if st.session_state.getting_confirmation:
+    left, _ = st.columns(2)
+    with left:
+        get_confirmation(
+            st.session_state.confirmation_message,
+            st.session_state.confirmation_on_confirm,
+            st.session_state.confirmation_on_cancel,
+            st.session_state.confirmation_confirm_text,
+            st.session_state.confirmation_cancel_text,
+        )
 else:
-    # upload data
-    uploaded_file = st.sidebar.file_uploader("Upload Data", type=["json"])
-    if uploaded_file is not None:
-        try:
-            data = json.load(uploaded_file)
-            st.session_state.data_series = []
-            for s in data["data_series"]:
-                st.session_state.data_series.append(DataSeries.from_dict(s))
-            st.session_state.figure_properties = FigureProperties.from_dict(
-                data["figure_properties"]
-            )
-            st.rerun()
-        except Exception as e:
-            st.error(handle_json_error(e))
-            raise (e)
-
-# save the data
-if (
-    len(st.session_state.data_series) > 0
-    or not st.session_state.figure_properties.is_default()
-):
-    save_data(
-        key,
-        st.session_state.data_series,
-        st.session_state.figure_properties,
-    )
-clean_old_files()
+    main_panes()
