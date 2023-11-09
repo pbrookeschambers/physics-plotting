@@ -289,7 +289,6 @@ if st.session_state.should_load:
     _data_series, _figure_properties = load_data(key)
     st.session_state.data_series = _data_series
     st.session_state.figure_properties = _figure_properties
-    # print(time_since_last_edit(key))
     st.session_state.should_load = False
 
 # session state variables
@@ -464,7 +463,7 @@ def line_options(
             opacity_callback=lambda: setattr(
                 line.color,
                 "opacity",
-                st.session_state.line_opacity / 100,
+                st.session_state[opacity_key] / 100,
             ),
         )
         # line width

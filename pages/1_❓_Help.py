@@ -64,14 +64,12 @@ cols = st.columns(3)
 
 sections = [d for d in os.listdir("pages/help_sections") if os.path.isdir(os.path.join("pages/help_sections", d))]
 sections = sorted(sections)
-logging.info(sections)
 
 def add_section(section_dir):
     name = section_dir[3:].replace("_", " ").title()
     st.subheader(name)
     files = [f for f in os.listdir(os.path.join("pages/help_sections", section_dir)) if f.endswith(".md")]
     files = sorted(files)
-    logging.info(files)
     for f in files:
         with st.expander("##### " + f[3:-3].replace("_", " ").title()):
             with open(os.path.join("pages/help_sections", section_dir, f)) as f:

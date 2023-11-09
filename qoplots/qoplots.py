@@ -135,7 +135,7 @@ def init(scheme: str = "twilight", scheme_type: str | SchemeType = "light", doc_
     # })
 
     # Set matplotlib rcParams
-    plt.rcParams.update({
+    new_params = {
         "text.usetex": True,
         "font.family": "serif",
         "font.serif": "Computer Modern Roman",
@@ -162,13 +162,11 @@ def init(scheme: str = "twilight", scheme_type: str | SchemeType = "light", doc_
         # "figure.constrained_layout.hspace": 0.1,
         # "figure.constrained_layout.wspace": 0.1,
         # "figure.constrained_layout.pad": 0.1
-        # add to the preamble: amsmath, amssymb
-        "text.latex.preamble": r"""
-            \usepackage{amsmath}
-            \usepackage{amssymb}
-        """
-    })
-
+        # add some packages to the preamble
+        "text.latex.preamble": r"""\usepackage{amsmath, amssymb}"""
+    }
+    plt.rcParams.update(new_params)
+    return new_params
 
 def get_scheme() -> ColorScheme:
     return Scheme
@@ -409,3 +407,4 @@ def show_scheme_wide(scheme = None, name = None, save = False, filepath = None):
             filepath = Path(f"{name}.svg".replace(" ", "_"))
         
         console.save_svg(filepath)
+

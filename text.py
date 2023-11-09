@@ -139,7 +139,7 @@ def process_units(text: str) -> str:
         text = text.replace(match.group(0), unit)
     return text
 
-def process_fit(text: str, fit_params: List[float]) -> str:
+def process_fit(text: str, fit_params: List[float], return_preprocessed: bool = False) -> str:
     # parameter names are always "a", "b", etc. Create a dictionary mapping these to the fit parameters
     text_original = text
     params = {}
@@ -149,7 +149,9 @@ def process_fit(text: str, fit_params: List[float]) -> str:
     # temporarily replace fit parameters with fit(...), then replace the braces, then replace fit(...) with the actual fit parameters ready for format
     text = re.sub("fit\{(.*?)\}", r"fit(\1)", text)
     text = text.replace("{", "{{").replace("}", "}}")
-    text = text.replace("fit(", "{").replace(")", "}")#
+    text = re.sub("fit\((.*?)\)", r"{\1}", text)
+    if return_preprocessed:
+        return text
     try:
         text = text.format(**params)
     except Exception as e:

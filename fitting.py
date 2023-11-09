@@ -57,3 +57,4 @@ def get_fitted_data(x: np.array, fit_type: str, fit_params: List[float]) -> np.a
             return _sinusoidal(x, *fit_params)
         case _:
             raise ValueError(f"Unrecognised fit type: {fit_type}")
+        
