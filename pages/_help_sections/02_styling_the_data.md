@@ -1,9 +1,0 @@
-Once you have some data, the sidebar will adjust to include options for styling how this data is displayed. This is managed per-series, so if you have more than one data series there will be a dropdown to select which series you want to modify. Expand the "Data Series" section. This is divided into three regions: "Marker", "Line", and "Legend". 
-                
-Under "Marker", you'll find a dropdown with different marker styles, including "None" for no marker. If a marker is chosen, additional options will be shown, including a slider for the marker size. An option to "Use Automatic Colour" is also given; if enabled, the colour of the marker will be taken from the theme. Otherwise, a colour selector will be shown, with which you can set the colour of the marker.
-                
-Under "Line", you'll find a dropdown with different line styles, including "None" for no line. If a line is chosen, additional options will be shown, including a slider for the line width. An option to "Use Automatic Colour" is also given; if enabled, the colour of the line will be taken from the theme. Otherwise, a colour selector will be shown, with which you can set the colour of the line.
-                
-Under "Legend" is the option to show the legend entry for this data series. If this is disabled, the data series will not be shown in the legend. If enabled, an additional text field will be shown to set the label for the legend entry. See the section below on Maths and Units for information about the available formatting options.
-                
-***Hint:** If none of your data series are included in the legend, make sure to disable the legend itself. See below.*
