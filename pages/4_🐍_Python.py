@@ -33,11 +33,11 @@ with left:
     if use_qoplots:
         st.markdown("The `qoplots` Python package can be found here: [QoPlots](https://github.com/pbrookeschambers/qoplots).")
     inline_data = st.toggle("Inline data", True, help = "if disabled, data will be loaded from a file")
-    if not inline_data and "data_series" in st.session_state:
+    if not inline_data and "data_series" in st.session_state and len(st.session_state.data_series) > 0:
         if len(st.session_state.data_series) == 1:
             data = st.session_state.data_series[0].to_csv()
             filename = st.session_state.figure_properties.filename + "_data.csv"
-        elif len(st.session_state.data_series) > 1:
+        else:
             data = json.dumps([s.to_plot_json() for s in st.session_state.data_series], indent = 4)
             filename = st.session_state.figure_properties.filename + "_data.json"
         st.download_button(
