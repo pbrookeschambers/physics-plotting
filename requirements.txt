@@ -3,3 +3,5 @@ numpy
 matplotlib
 scipy
 extra-streamlit-components
+black
+json
