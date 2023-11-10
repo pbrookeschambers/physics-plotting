@@ -581,13 +581,13 @@ class FigureProperties:
         code.write(f"# Add the legend\n")
         code.write(self.legend.to_plot_code())
         code.write(f"# Save the figure\n")
-        if self.file_type == "png":
+        if self.file_type.lower() == "png":
             code.write(
-                f'plt.savefig("{self.filename}.{self.file_type}", dpi = 300, bbox_inches = "tight")\n'
+                f'plt.savefig("{self.filename}.{self.file_type.lower()}", dpi = 300, bbox_inches = "tight")\n'
             )
         else:
             code.write(
-                f'plt.savefig("{self.filename}.{self.file_type}", bbox_inches = "tight")\n'
+                f'plt.savefig("{self.filename}.{self.file_type.lower()}", bbox_inches = "tight")\n'
             )
         return code.getvalue()
 

@@ -552,10 +552,16 @@ def data_sidebar():
     if len(st.session_state.data_series) == 0:
         return
     if len(st.session_state.data_series) > 1:
+        try:
+            active_series_index = st.session_state.data_series.index(
+                st.session_state.active_series
+            )
+        except ValueError:
+            active_series_index = 0
         st.sidebar.selectbox(
             "Data Series",
             [s.name for s in st.session_state.data_series],
-            index=0,
+            index=active_series_index,
             key="active_series_name",
             on_change=lambda: change_active_series(st.session_state.active_series_name),
         )

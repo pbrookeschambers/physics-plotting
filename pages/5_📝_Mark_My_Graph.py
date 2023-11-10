@@ -3,6 +3,7 @@ from io import StringIO
 import streamlit as st
 
 from constants import LineStyles, MarkerStyles
+import qoplots.color_scheme as cs
 
 st.set_page_config(
     page_title="Plotting - Mark My Graph",
@@ -47,7 +48,7 @@ def check_line_styles():
     # identical to markers, just for line styles
     lines_used = []
     for series in st.session_state.data_series:
-        if series.line.style != LineStyles.NONE:
+        if series.line.style.index != LineStyles.NONE.index:
             lines_used.append((series.name, series.line.style))
     if len(lines_used) == 0:
         return True, {}
@@ -173,20 +174,26 @@ def check_line_of_best_fit_legend():
     return len(problems) == 0, problems
 
 def get_problems_message():
+    num_potential_problems = 9
+    score = num_potential_problems
+    total_problems = 0
+    serious_problems = 0
     found_some_problems = False
-    st.markdown("I found the following potential problems with your graph:")
+    score_container = st.empty()
+    pre_paragraph = st.empty()
     cols = st.columns(3)
     idx = 0
-
     markers_good, markers_duplicates = check_markers()
     lines_good, lines_duplicates = check_line_styles()
     if not markers_good or not lines_good:
+        score -= 1
         found_some_problems = True
         with cols[idx % 3]:
             with st.expander("##### Duplicate Markers or Lines"):
                 text = StringIO()
                 if not markers_good:
                     text.write("You have used the same marker style for multiple data series:\n\n")
+                    total_problems += len(markers_duplicates)
                     for m, s in markers_duplicates.items():
                         text.write(f"- These series all use the marker style \"{m.lower().title()}\":\n")
                         for series in s:
@@ -194,6 +201,7 @@ def get_problems_message():
                 text.write("\n")
                 if not lines_good:
                     text.write("You have used the same line style for multiple data series:\n\n")
+                    total_problems += len(lines_duplicates)
                     for l, s in lines_duplicates.items():
                         text.write(f"- These series all use the line style \"{l.lower().title()}\":\n")
                         for series in s:
@@ -205,7 +213,9 @@ You should try to use different marker styles and line styles for each data seri
         idx += 1
 
     opacities_good, low_opacities = check_opacities()
+    total_problems += len(low_opacities)
     if not opacities_good:
+        score -= 1
         found_some_problems = True
         with cols[idx % 3]:
             with st.expander("##### Low Opacities"):
@@ -221,6 +231,9 @@ Low opacity markers and lines can be very hard to see, and should usually be avo
 
     x_good, y_good = check_axis_labels()
     if not x_good or not y_good:
+        score -= 1
+        total_problems += int(not x_good) + int(not y_good)
+        serious_problems += int(not x_good) + int(not y_good)
         found_some_problems = True
         with cols[idx % 3]:
             with st.expander("##### Missing Axis Labels"):
@@ -235,6 +248,9 @@ Every graph **must** have an axis label for each axis. If there is no axis label
 
     x_good, y_good = check_axis_units()
     if not x_good or not y_good:
+        score -= 1
+        total_problems += int(not x_good) + int(not y_good)
+        serious_problems += int(not x_good) + int(not y_good)
         found_some_problems = True
         with cols[idx % 3]:
             with st.expander("##### Missing Axis Units"):
@@ -248,6 +264,9 @@ If you have not specified units for an axis, then the data on the graph can't be
 
     has_legend = check_legend()
     if not has_legend:
+        score -= 1
+        total_problems += 1
+        serious_problems += 1
         found_some_problems = True
         with cols[idx % 3]:
             with st.expander("##### Missing Legend"):
@@ -261,6 +280,8 @@ If you have more than one data series, or a line of best fit, the reader needs t
 
     line_of_best_fit_good, bad_fits = check_line_of_best_fit()
     if not line_of_best_fit_good:
+        score -= 1
+        total_problems += len(bad_fits)
         found_some_problems = True
         with cols[idx % 3]:
             with st.expander("##### Poor Quality Fits"):
@@ -278,6 +299,8 @@ If your $R^2$ value is very low, this could indicate that you are not using the 
 
     x_good, y_good = check_axis_limits()
     if not x_good or not y_good:
+        score -= 1
+        total_problems += int(not x_good) + int(not y_good)
         found_some_problems = True
         with cols[idx % 3]:
             with st.expander("##### Axis Limits Too Wide"):
@@ -292,6 +315,8 @@ If you have set the axis limits manually, you should ensure that the data covers
 
     font_size_good, bad_font_sizes = check_font_sizes()
     if not font_size_good:
+        score -= 1
+        total_problems += len(bad_font_sizes)
         found_some_problems = True
         with cols[idx % 3]:
             with st.expander("##### Font Sizes"):
@@ -307,6 +332,8 @@ Font sizes below 8pt can be very hard to read, while font sizes above 20pt can b
 
     line_of_best_fit_legend_good, bad_fits = check_line_of_best_fit_legend()
     if not line_of_best_fit_legend_good:
+        score -= 1
+        total_problems += len(bad_fits)
         found_some_problems = True
         with cols[idx % 3]:
             with st.expander("##### Missing Fit Parameters"):
@@ -321,8 +348,22 @@ When including a line of best fit on a graph, you need to tell the reader what t
 
     if not found_some_problems:
         st.markdown("I couldn't find any problems with your graph! 🎉")
-    else:
-        st.markdown("*This is just a guide, and is far from comprehensive. It also isn't perfect; it might not detect things that you have done well, and it might miss some problems.*")
+    score -= serious_problems
+    score = max(score, 0)
+    percent_score = score / num_potential_problems * 100
+    red = cs.Color("#FF4B4B")
+    green = cs.Color("#34c144")
+    score_color = red.move_to_color(green, percent_score/100)
+    score_color.l = 0.5
+    print(score_color.hsl)
+    score_message = f"""<span style="font-size: 2em;">Your score: <span style = "color: {score_color.css}; font-weight: bold; font-size:1.5em">{percent_score:.0f}%</span></span>"""
+    if found_some_problems:
+        score_message += f"""<br><p>I found {total_problems} potential problem{'s' if total_problems > 1 else ''} with your figure{(f', {serious_problems} of which {"are" if serious_problems > 1 else "is"} potentially serious') if serious_problems > 0 else ''}. See the box{'es' if score < 8 else ''} below for details and advice.</p>"""
+    score_container.markdown(score_message, unsafe_allow_html=True)
+    st.markdown("*This is just a guide, and is far from comprehensive. It also isn't perfect; it might not detect things that you have done well, and it might miss some problems. I am only checking for certain common basic problems - a score of 100% doesn't necessarily mean your graph is perfect.*")
 
+st.title("Mark My Graph")
 if "data_series" in st.session_state and len(st.session_state.data_series) > 0:
     get_problems_message()
+else:
+    st.markdown("It looks like you don't have an active figure. Go to the [Home page](/) to create one, or the [Help page](/Help) for guidance on how to use this app.")

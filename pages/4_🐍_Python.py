@@ -11,7 +11,7 @@ st.set_page_config(
     page_title="Plotting - Python",
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
     # menu_items={
     #     "About": about
     # }
@@ -19,9 +19,10 @@ st.set_page_config(
 
 st.markdown("""# Python Code""")
 
-left, right = st.columns(2)
+left, right = st.columns([0.35, 0.65])
 
 with left:
+    st.markdown("## Options")
     st.markdown(
         """On the right hand side, you can find the python code necessary to recreate the figure you have created. Below are some settings for this code.
                 
