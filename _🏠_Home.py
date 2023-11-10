@@ -219,6 +219,7 @@ def add_new_data():
             ),
             fit_type="Linear",
             fit_params=[1, 0],
+            r_squared=1,
             legend_entry=LegendEntry(
                 show=False,
                 label="Fit",
@@ -245,7 +246,7 @@ def update_fit(series: DataSeries, fit_type: str, show_fit: bool):
     series.line_of_best_fit.attempt_plot = True
     # fit the data
     try:
-        series.line_of_best_fit.fit_params = fit(fit_type, series.x, series.y)
+        series.line_of_best_fit.fit_params, series.line_of_best_fit.r_squared = fit(fit_type, series.x, series.y)
     except Exception as e:
         st.error(handle_fit_error(e, fit_type, series.name))
         series.line_of_best_fit.attempt_plot = False
@@ -852,8 +853,8 @@ def axis_options(
                     axis,
                     lim,
                     None
-                    if st.session_state[f"{axis_name}_min"] == ""
-                    else float(st.session_state[f"{axis_name}_min"]),
+                    if st.session_state[f"{axis_name}_{lim}"] == ""
+                    else float(st.session_state[f"{axis_name}_{lim}"]),
                 ),
             )
     text_options(
@@ -905,7 +906,16 @@ def figure_sidebar():
             ),
         )
     with st.sidebar.expander("**Legend**"):
-        show_legend = st.toggle("Show Legend", True, key="show_legend")
+        show_legend = st.toggle(
+            "Show Legend", 
+            True, 
+            key="show_legend",
+            on_change=lambda: setattr(
+                st.session_state.figure_properties.legend,
+                "show",
+                st.session_state.show_legend,
+            ),
+        )
         if show_legend:
             positions = [
                 "Best",

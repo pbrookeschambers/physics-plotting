@@ -122,6 +122,7 @@ class LineOfBestFit:
     fit_type: str
     fit_params: List[float]
     legend_entry: LegendEntry
+    r_squared: float
     attempt_plot: bool = True
 
     def to_dict(self):
@@ -133,6 +134,7 @@ class LineOfBestFit:
             if isinstance(self.fit_params, np.ndarray)
             else self.fit_params,
             "legend_entry": self.legend_entry.to_dict(),
+            "r_squared": float(self.r_squared),
             "attempt_plot": self.attempt_plot,
         }
 
@@ -144,6 +146,7 @@ class LineOfBestFit:
             fit_type=d["fit_type"],
             fit_params=d["fit_params"],
             legend_entry=LegendEntry.from_dict(d["legend_entry"]),
+            r_squared=d["r_squared"],
             attempt_plot=d["attempt_plot"],
         )
 

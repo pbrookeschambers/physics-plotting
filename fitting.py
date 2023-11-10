@@ -39,7 +39,13 @@ def fit(fit_type: str, x_data: np.array, y_data: np.array) -> List[float]:
             raise ValueError(f"Unrecognised fit type: {fit_type}")
     
     popt, pcov = curve_fit(fit_func, x_data, y_data)
-    return popt
+    # get the R^2 value
+    residuals = y_data - fit_func(x_data, *popt)
+    ss_res = np.sum(residuals**2)
+    ss_tot = np.sum((y_data - np.mean(y_data))**2)
+    r_squared = 1 - (ss_res / ss_tot)
+
+    return popt, r_squared
 
 def get_fitted_data(x: np.array, fit_type: str, fit_params: List[float]) -> np.array:
     match fit_type:
