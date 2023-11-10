@@ -477,10 +477,14 @@ def get_confirmation(
 
 
 if st.session_state.should_load:
-    _data_series, _figure_properties = load_data(key)
-    st.session_state.data_series = _data_series
-    st.session_state.figure_properties = _figure_properties
-    st.session_state.should_load = False
+    try:
+        _data_series, _figure_properties = load_data(key)
+        st.session_state.data_series = _data_series
+        st.session_state.figure_properties = _figure_properties
+        st.session_state.should_load = False
+    except Exception as e:
+        st.error("There was an error loading the data from the server. This is likely due to a server error or an outdated data format. Please start a new figure as normal.")
+        st.session_state.should_load = False
 
 # session state variables
 if "figure_properties" not in st.session_state:
