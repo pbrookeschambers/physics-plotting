@@ -841,22 +841,46 @@ def axis_options(
     axis: AxisProperties,
     axis_name: str,  # x or y
 ):
-    cols = st.columns(2)
-    for i, lim in enumerate(["min", "max"]):
-        with cols[i]:
-            st.text_input(
-                f"${axis_name}$ {lim}",
-                "" if axis[lim] is None else axis[lim],
-                key=f"{axis_name}_{lim}",
-                help="Leave blank for automatic scaling.",
-                on_change=lambda: setattr(
-                    axis,
-                    lim,
-                    None
-                    if st.session_state[f"{axis_name}_{lim}"] == ""
-                    else float(st.session_state[f"{axis_name}_{lim}"]),
-                ),
-            )
+    # cols = st.columns(2)
+    # for i, lim in enumerate(["min", "max"]):
+    #     with cols[i]:
+    #         key = f"{axis_name}_{lim}"
+    #         st.text_input(
+    #             f"${axis_name}$ {lim}",
+    #             "" if axis[lim] is None else str(axis[lim]),
+    #             key=key,
+    #             help="Leave blank for automatic scaling.",
+    #             # on_change=lambda: setattr(
+    #             #     axis,
+    #             #     lim,
+    #             #     None
+    #             #     if st.session_state[f"{axis_name}_{lim}"].strip() == ""
+    #             #     else float(st.session_state[f"{axis_name}_{lim}"]),
+    #             # ),
+    #             on_change = lambda: print("Axis limit: ", st.session_state[key])
+    #         )
+    min_col, max_col = st.columns(2)
+    with min_col:
+        key = f"{axis_name}_axis_min"
+        axis_lim = st.text_input(
+            f"${axis_name}$ Min",
+            "" if axis.min is None else str(axis.min),
+            key=key,
+            help="Leave blank for automatic scaling.",
+        )
+        axis_lim = None if len(axis_lim.strip()) == 0 else float(axis_lim)
+        axis.min = axis_lim
+    with max_col:
+        key = f"{axis_name}_max"
+        axis_lim = st.text_input(
+            f"${axis_name}$ Max",
+            "" if axis.max is None else str(axis.max),
+            key=key,
+            help="Leave blank for automatic scaling.",
+        )
+        
+        axis_lim = None if len(axis_lim.strip()) == 0 else float(axis_lim)
+        axis.max = axis_lim
     text_options(
         f"${axis_name}$ Axis Label",
         axis.label,

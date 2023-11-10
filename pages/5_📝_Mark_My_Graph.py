@@ -122,10 +122,10 @@ def check_axis_limits():
     y_max = st.session_state.figure_properties.y_axis.max
     if x_min is None and x_max is None and y_min is None and y_max is None:
         return True, True
-    x_data_min = min([min(s.x_data) for s in st.session_state.data_series])
-    x_data_max = max([max(s.x_data) for s in st.session_state.data_series])
-    y_data_min = min([min(s.y_data) for s in st.session_state.data_series])
-    y_data_max = max([max(s.y_data) for s in st.session_state.data_series])
+    x_data_min = min([min(s.x) for s in st.session_state.data_series])
+    x_data_max = max([max(s.x) for s in st.session_state.data_series])
+    y_data_min = min([min(s.y) for s in st.session_state.data_series])
+    y_data_max = max([max(s.y) for s in st.session_state.data_series])
     x_good = True
     y_good = True
     if x_min is not None or x_max is not None:
