@@ -5,6 +5,7 @@ import re
 import streamlit as st
 import os
 import black
+from data import indent
 import qoplots.qoplots as qp
 
 st.set_page_config(
@@ -33,7 +34,7 @@ with left:
     use_qoplots = st.toggle("Use `qoplots`", True, help = "If disabled, styling will be included directly")
     if use_qoplots:
         st.markdown("The `qoplots` Python package can be found here: [QoPlots](https://github.com/pbrookeschambers/qoplots).")
-    inline_data = st.toggle("Inline data", True, help = "if disabled, data will be loaded from a file")
+    inline_data = st.toggle("Inline data", True, help = "If disabled, data will be loaded from a file")
     if not inline_data and "data_series" in st.session_state and len(st.session_state.data_series) > 0:
         if len(st.session_state.data_series) == 1:
             data = st.session_state.data_series[0].to_csv()
@@ -51,6 +52,15 @@ with left:
     use_latex = st.toggle("Use $\LaTeX$", True, help = "If disabled, use matplotlib's default text rendering")
 
 with right:
+
+    # only add line of best fit code if we actually have any lines of best fit
+    has_lobf = False
+    all_have_lobf = True
+    for s in st.session_state.data_series:
+        if s.line_of_best_fit.show:
+            has_lobf = True
+        else:
+            all_have_lobf = False
     if "data_series" in st.session_state:
         st.markdown("""## Code""")
         code = StringIO()
@@ -61,7 +71,7 @@ qp.init("{st.session_state.figure_properties.theme.lower().replace(" ", "_")}")'
 import matplotlib.pyplot as plt
 {'''import matplotlib as mpl''' if not use_qoplots or not use_latex else ""}
 {'''from cycler import cycler''' if not use_qoplots else ""}
-from scipy.optimize import curve_fit
+{'''from scipy.optimize import curve_fit''' if has_lobf else ""}
 """
         )
         if len(st.session_state.data_series) > 1 and not inline_data:
@@ -137,27 +147,38 @@ for data_series in data:
     x_data = np.array(data_series["x_data"])
     y_data = np.array(data_series["y_data"])
     plt.plot(x_data, y_data, **data_series["plot_opts"])
-    if "line_of_best_fit" in data_series:
-        lobf = data_series["line_of_best_fit"]
-        # Fit the data
-        fit_func = fit_funcs[lobf["fit_type"]]
-        fit_params, pcov = curve_fit(fit_func, x_data, y_data)
-        # Take a sensible number of sample points (100, or the number of data points if that's larger)
-        num_points = max(100, len(x_data))
-        x_fit = np.linspace(min(x_data), max(x_data), num_points)
-        y_fit = fit_func(x_fit, *fit_params)
-        # Prepare for label formatting
-        # This will create a dictionary with {"a": a_value, "b": b_value, ...} for however many we have
-        params = {chr(ord("a") + i): param for i, param in enumerate(fit_params)}
-        fit_label = lobf["plot_opts"]["label"].format(**params)
-        # remove the label from the plot options
-        lobf["plot_opts"].pop("label")
-        plt.plot(x_fit, y_fit, label=fit_label, **lobf["plot_opts"])
 """)
-        code.write(f"\n\n#{' Figure Properties ':-<100s}\n")
-        code.write(st.session_state.figure_properties.to_plot_code())
-        code = code.getvalue()
-        if not include_comments:
-            code = "\n".join([l for l in code.split("\n") if not l.strip().startswith("#")])
-        code = black.format_str(code, mode=black.Mode())
-        st.code(code, language="python")
+    lobf_code = """    lobf = data_series["line_of_best_fit"]
+    # Fit the data
+    fit_func = fit_funcs[lobf["fit_type"]]
+    fit_params, pcov = curve_fit(fit_func, x_data, y_data)
+    # Take a sensible number of sample points (100, or the number of data points if that's larger)
+    num_points = max(100, len(x_data))
+    x_fit = np.linspace(min(x_data), max(x_data), num_points)
+    y_fit = fit_func(x_fit, *fit_params)
+    # Prepare for label formatting
+    # This will create a dictionary with {"a": a_value, "b": b_value, ...} for however many we have
+    params = {chr(ord("a") + i): param for i, param in enumerate(fit_params)}
+    # add the R^2 value to the dictionary
+    params["R2"] = lobf["r_squared"]
+    # format the label
+    fit_label = lobf["plot_opts"]["label"].format(**params)
+    # remove the label from the plot options
+    lobf["plot_opts"].pop("label")
+    plt.plot(x_fit, y_fit, label=fit_label, **lobf["plot_opts"])
+"""
+    if has_lobf:
+        code.write(f"#{' Line of best fit ':-<96s}\n")
+        if not all_have_lobf:
+            code.write("""    if "line_of_best_fit" in data_series:""" + "\n")
+            lobf_code = indent(lobf_code, 1)
+        code.write(lobf_code)
+    code.write(f"\n\n#{' Figure Properties ':-<100s}\n")
+    code.write(st.session_state.figure_properties.to_plot_code())
+    code = code.getvalue()
+    if not include_comments:
+        code = "\n".join([l for l in code.split("\n") if not l.strip().startswith("#")])
+    # remove any empty lines (let black determine where they should be)
+    code = "\n".join([l for l in code.split("\n") if len(l.strip()) > 0])
+    code = black.format_str(code, mode=black.Mode())
+    st.code(code, language="python")

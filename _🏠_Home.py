@@ -1,5 +1,6 @@
 import base64
 import io
+from marking import check_for_problems
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
@@ -355,6 +356,7 @@ def plot(data_series, figure_properties):
                 "label": process_fit(
                     process_units(s.line_of_best_fit.legend_entry.label),
                     s.line_of_best_fit.fit_params,
+                    s.line_of_best_fit.r_squared,
                 ),
             }
             if s.line_of_best_fit.legend_entry.show
@@ -475,6 +477,15 @@ def get_confirmation(
             else:
                 st.rerun()
 
+def score_sidebar(percent_score, score_color):
+    st.sidebar.header("Mark My Graph")
+    st.sidebar.markdown(f"""<div style = "display: flex; align-items: center; justify-content: center;">
+    <span style = "font-size: 1.5em; color: {score_color.css}; font-weight: bold;">{percent_score:.0f}%</span>
+    <a href = "/Mark_My_Graph" style = "margin-left: 1em;" target = "_self">
+        <span style = "font-shape: italic; font-size: 1em;">(More info)</span>
+    </a>
+</div>""", unsafe_allow_html=True)
+    st.sidebar.divider()
 
 if st.session_state.should_load:
     try:
@@ -806,12 +817,16 @@ def line_of_best_fit_options():
                 len(st.session_state.active_series.line_of_best_fit.fit_params)
             ):
                 column_config[str(i)] = chr(ord("a") + i)
+            column_config[str(len(st.session_state.active_series.line_of_best_fit.fit_params))] = "R\u00b2"
+            data = np.array(st.session_state.active_series.line_of_best_fit.fit_params)
+            data = np.append(data, st.session_state.active_series.line_of_best_fit.r_squared)
             st.dataframe(
-                [st.session_state.active_series.line_of_best_fit.fit_params],
+                [data.tolist()],
                 hide_index=True,
                 use_container_width=True,
                 column_config=column_config,
             )
+            # st.markdown(f"$R^2 = {st.session_state.active_series.line_of_best_fit.r_squared:.5f}$")
         st.subheader("Line")
         line_options(
             st.session_state.active_series.line_of_best_fit.line,
@@ -942,7 +957,7 @@ def figure_sidebar():
     with st.sidebar.expander("**Legend**"):
         show_legend = st.toggle(
             "Show Legend", 
-            True, 
+            st.session_state.figure_properties.legend.show, 
             key="show_legend",
             on_change=lambda: setattr(
                 st.session_state.figure_properties.legend,
@@ -1096,6 +1111,9 @@ def file_sidebar():
         ),
     )
 
+if len(st.session_state.data_series) > 0:
+    score, color = check_for_problems(score_only = True)
+    score_sidebar(score, color)
 
 st.sidebar.title("Options")
 st.sidebar.header("Data")
@@ -1285,6 +1303,12 @@ def main_panes():
                     st.session_state.data_series.append(DataSeries.from_dict(s))
                 st.session_state.figure_properties = FigureProperties.from_dict(
                     data["figure_properties"]
+                )
+                st.session_state.active_series = st.session_state.data_series[0]
+                save_data(
+                    key,
+                    st.session_state.data_series,
+                    st.session_state.figure_properties,
                 )
                 st.rerun()
             except Exception as e:

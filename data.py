@@ -207,6 +207,7 @@ y_fit = fit_func(x_fit, *fit_params)
             label = process_fit(
                 process_units(self.legend_entry.label),
                 self.fit_params,
+                self.r_squared,
                 return_preprocessed=True,
             )
             data_code.write(
@@ -253,6 +254,7 @@ fit_label = f{repr(label)}
             label = process_fit(
                 process_units(self.legend_entry.label),
                 self.fit_params,
+                self.r_squared,
                 return_preprocessed=True,
             )
             plot_opts["label"] = label
@@ -592,7 +594,7 @@ class FigureProperties:
         return code.getvalue()
 
 
-def indent(string: str, indent_by: int, absolute_indent: False, indent_width: int = 4):
+def indent(string: str, indent_by: int, absolute_indent: bool = False, indent_width: int = 4):
     lines = string.split("\n")
     full_indent = " " * indent_width * indent_by
     if not absolute_indent:

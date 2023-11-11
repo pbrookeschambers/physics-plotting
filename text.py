@@ -139,12 +139,14 @@ def process_units(text: str) -> str:
         text = text.replace(match.group(0), unit)
     return text
 
-def process_fit(text: str, fit_params: List[float], return_preprocessed: bool = False) -> str:
+def process_fit(text: str, fit_params: List[float], r_squared: float, return_preprocessed: bool = False) -> str:
     # parameter names are always "a", "b", etc. Create a dictionary mapping these to the fit parameters
     text_original = text
     params = {}
     for i, param in enumerate(fit_params):
         params[chr(ord("a") + i)] = param
+    # add the r_squared parameter as R2
+    params["R2"] = r_squared
     # text will have {} for normal latex. Need to replace those with double braces. Actual fit parameters will be fit{...}
     # temporarily replace fit parameters with fit(...), then replace the braces, then replace fit(...) with the actual fit parameters ready for format
     text = re.sub("fit\{(.*?)\}", r"fit(\1)", text)

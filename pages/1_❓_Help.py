@@ -83,3 +83,4 @@ with cols[1]:
     add_section(sections[3])
 with cols[2]:
     add_section(sections[4])
+    add_section(sections[5])

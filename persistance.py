@@ -76,7 +76,10 @@ def save_data(key, data_series: List[DataSeries], figure_properties: FigurePrope
 
 def clear_data(key):
     data_file = (data_dir / f"{key}.json")
-    data_file.unlink()
+    try:
+        data_file.unlink()
+    except FileNotFoundError:
+        logging.warning(f"Could not find file {data_file} when clearing data")
     # create the empty file again
     data = state_to_json([], FigureProperties.default())
     json.dump(data, data_file.open("w"))
