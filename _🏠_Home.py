@@ -1,5 +1,7 @@
 import base64
 import io
+
+import pandas as pd
 from marking import check_for_problems
 import streamlit as st
 import numpy as np
@@ -238,8 +240,6 @@ def add_new_data(
     )
     st.session_state.data_series.append(s)
     st.session_state.active_series = s
-    st.rerun()
-
 
 def delete_series(s_name: str):
     # remove the series. If it is the active series, set the active series to the first (or None)
@@ -1273,7 +1273,7 @@ def main_panes():
                 if csv_file.delimiter is None:
                     st.markdown("I couldn't detect some settings for this CSV file. Please specify them manually.")
                 
-                options_expander =  st.expander("Options")
+                options_expander =  st.expander("Options", expanded=True)
                 with options_expander:
                     left, right = st.columns(2)
                     with left:
@@ -1283,6 +1283,11 @@ def main_panes():
                             key="csv_delimiter",
                             format_func=lambda x: x.name.replace("_", " ").title(),
                             index=csv_file.delimiter.index if csv_file.delimiter is not None else 0,
+                            on_change=lambda: setattr(
+                                csv_file,
+                                "delimiter",
+                                st.session_state.csv_delimiter,
+                            ),
                         )
                     with right:
                         st.selectbox(
@@ -1290,7 +1295,12 @@ def main_panes():
                             list(CommentCharacters),
                             key="csv_comment_character",
                             index=csv_file.comment_character.index,
-                            format_func = lambda x: x.value
+                            format_func = lambda x: x.value,
+                            on_change=lambda: setattr(
+                                csv_file,
+                                "comment_character",
+                                st.session_state.csv_comment_character,
+                            ),
                         )
                     with left:
                         st.number_input(
@@ -1325,12 +1335,26 @@ def main_panes():
                         skip_header=csv_file.header_rows,
                         skip_footer=csv_file.footer_rows,
                         comments=csv_file.comment_character.value,
+                        dtype = str # we'll convert to float later, but some columns might not be numeric
                     )
                     csv_file.data = data
+                    # check that the data is 2D. If not, we've definitely got a problem
+                    if len(data.shape) != 2:
+                        err_message = "The csv file did not produce a 2D table of data. This is likely not the correct delimiter. Your uploaded file is shown below for reference."
+                        delim = csv_file.guess_delimiter()
+                        if delim != None:
+                            err_message += f" From my tests, I think that the delimiter should be {delim.name.title()}."
+                        st.error(err_message)
+                        st.code(csv_file.contents, language = "csv")
+                        csv_file.data = None
+                        show_button = False
+                        raise ValueError("The data is not 2D. This is likely not the correct delimiter.")
                 except Exception as e:
                     logging.error(e)
                 with options_expander:
                     if csv_file.data is not None:
+                        st.divider()
+                        left, right = st.columns(2)
                         with left:
                             x_col = st.selectbox(
                                 "X Column",
@@ -1355,41 +1379,69 @@ def main_panes():
                             )
                             new_x_data = csv_file.data[:, int(x_col)]
                             new_y_data = csv_file.data[:, int(y_col)]
+                            # convert to floats
+                            try:
+                                # let any empty cells be converted to 0
+                                new_x_data = ["0" if len(x.strip()) == 0 else x for x in new_x_data]
+                                new_y_data = ["0" if len(y.strip()) == 0 else y for y in new_y_data]
+                                new_x_data = np.array(new_x_data, dtype=float)
+                                new_y_data = np.array(new_y_data, dtype=float)
+                                show_button = True
+                            except ValueError:
+                                show_button = False
+                    st.divider()
+                    left, right = st.columns(2)
+                    with left:
+                        if show_button:
+                            st.button(
+                                "Add Data",
+                                key="add_csv_data",
+                                on_click=lambda: add_new_data(
+                                    name,
+                                    new_x_data,
+                                    new_y_data,
+                                ),
+                                use_container_width = True
+                            )
+                        elif csv_file.data is not None:
+                            st.error(f"There was an error parsing the data for the specified columns ({x_col} and {y_col}). Please check that the data is numeric.")
+                    with right:
                         st.button(
-                            "Add Data",
-                            key="add_csv_data",
-                            on_click=lambda: add_new_data(
-                                name,
-                                new_x_data,
-                                new_y_data,
+                            "Clear CSV",
+                            key="clear_csv",
+                            type = "primary",
+                            on_click = confirm,
+                            args = (
+                                "Are you sure you want to clear this CSV file?",
+                                lambda: setattr(
+                                    st.session_state,
+                                    "csv_file",
+                                    None
+                                ),
+                                None,
+                                "Clear",
+                                "Cancel"
                             ),
+                            help = "Clear the current csv file, so that another might be uploaded.",
+                            use_container_width = True
                         )
-                    st.button(
-                        "Clear CSV",
-                        key="clear_csv",
-                        type = "primary",
-                        on_click = confirm,
-                        args = (
-                            "Are you sure you want to clear this CSV file?",
-                            lambda: setattr(
-                                st.session_state,
-                                "csv_file",
-                                None
-                            ),
-                            None,
-                            "Clear",
-                            "Cancel"
-                        ),
-                        help = "Clear the current csv file, so that another might be uploaded."
-                    )
                 if csv_file.data is not None:
+                    data_styled = csv_file.data.copy()
+                    # convert to dataframe
+                    data_styled = pd.DataFrame(data_styled)
+                    # style the selected columns
+                    data_styled = data_styled.style.apply(
+                        lambda x: ["background-color: #ffb5b5" if i == int(x_col) else "background-color: #bfd1ff" if i == int(y_col) else "" for i in range(len(x))],
+                        axis=1
+                    )
                     st.dataframe(
-                        csv_file.data, 
+                        data_styled, 
                         use_container_width=True,
                         column_config = {
                             str(x_col): "X Column",
                             str(y_col): "Y Column"
-                        }
+                        },
+                        hide_index=True
                     )
 
 
@@ -1482,6 +1534,18 @@ def main_panes():
             except Exception as e:
                 st.error(handle_json_error(e))
                 raise (e)
+        st.sidebar.button(
+            "New Figure",
+            key="new_2",
+            help="Start a new plot. **:red[This will clear all current data.]**",
+            on_click=confirm,
+            args=(
+                "Are you sure you want to start a new figure? :red[This will clear all current data.]",
+                lambda: clear_data(st.session_state.key_cookie),
+            ),
+            type="primary",
+            use_container_width=True,
+        )
 
     # save the data
     if (

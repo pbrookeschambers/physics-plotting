@@ -44,9 +44,9 @@ class ColorMode(IndexedEnum):
 class Delimiters(IndexedEnum):
     COMMA = ","
     TAB = r"\t"
-    SPACE = r"\s+"
     SEMICOLON = ";"
     PIPE = r"\|"
+    SPACE = r"\s+"
 
 class CommentCharacters(IndexedEnum):
     PYTHON = "#"

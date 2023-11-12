@@ -725,6 +725,26 @@ class CSVFile:
         # if we get here, no delimiter worked
         return None
 
+    # def guess_header_rows(self) -> int:
+    #     # guess the number of (non-comment) header rows
+    #     lines = self.contents.split("\n")
+    #     centre = (len(lines) + 1) // 2
+    #     # start from the centre, move upwards until a line doesn't have the same number of items. This is the last header row
+    #     start_row = self.split_at_delim(lines[centre], self.delimiter.value)
+    #     start_len = len(start_row)
+    #     data_is_numeric = all([self.is_numeric(item) for item in start_row])
+
+    #     for i in range(centre-1, -1, -1):
+    #         row = self.split_at_delim(lines[i], self.delimiter.value)
+    #         if data_is_numeric:
+    #             row_is_numeric = all([self.is_numeric(item) for item in row])
+    #         else:
+    #             row_is_numeric = False
+    #         if len(self.split_at_delim(lines[i], self.delimiter.value)) != start_len or (data_is_numeric and not row_is_numeric):
+    #             return i + 1
+    #     # if we get here, there is no header
+    #     return 0
+
     def guess_header_rows(self) -> int:
         # guess the number of (non-comment) header rows
         lines = self.contents.split("\n")
@@ -732,19 +752,34 @@ class CSVFile:
         # start from the centre, move upwards until a line doesn't have the same number of items. This is the last header row
         start_row = self.split_at_delim(lines[centre], self.delimiter.value)
         start_len = len(start_row)
-        data_is_numeric = all([self.is_numeric(item) for item in start_row])
-
+        data_is_numeric = [self.is_numeric(item) for item in start_row]
+        all_data_is_numeric = all(data_is_numeric)
+        numeric_threshold = 5 # if this many rows are numeric (per column), assume that the entire column is numeric
+        consistently_numeric = True
         for i in range(centre-1, -1, -1):
             row = self.split_at_delim(lines[i], self.delimiter.value)
-            if data_is_numeric:
-                row_is_numeric = all([self.is_numeric(item) for item in row])
-            else:
-                row_is_numeric = False
-            if len(self.split_at_delim(lines[i], self.delimiter.value)) != start_len or (data_is_numeric and not row_is_numeric):
+            if len(row) != start_len:
                 return i + 1
+            row_is_numeric = [self.is_numeric(item) for item in row]
+            if all_data_is_numeric:
+                # check if this row is numeric
+                if not all(row_is_numeric):
+                    return i + 1
+            if consistently_numeric:
+                if numeric_threshold > 0:
+                    # check if the row matches the first row
+                    if not all([a == b for a, b in zip(data_is_numeric, row_is_numeric)]):
+                        consistently_numeric = False
+                    numeric_threshold -= 1
+                else:
+                    # we're pretty sure we know the data type for each column now. If it no longer matches, we're done
+                    if not all([a == b for a, b in zip(data_is_numeric, row_is_numeric)]):
+                        return i + 1
+
         # if we get here, there is no header
         return 0
-    
+
+
     def guess_footer_rows(self) -> int:
         # guess the number of (non-comment) footer rows
         lines = self.contents.split("\n")
@@ -771,7 +806,9 @@ class CSVFile:
             float(string)
             return True
         except ValueError:
-            return False
+            # check for inf, -inf, nan, or empty string
+
+            return string.lower().strip() in ["inf", "-inf", "nan", ""]
         
     def to_dict(self):
         return {
