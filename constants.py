@@ -40,3 +40,16 @@ class ColorMode(IndexedEnum):
     AUTO = auto()
     THEME = auto()
     CUSTOM = auto()
+
+class Delimiters(IndexedEnum):
+    COMMA = ","
+    TAB = r"\t"
+    SPACE = r"\s+"
+    SEMICOLON = ";"
+    PIPE = r"\|"
+
+class CommentCharacters(IndexedEnum):
+    PYTHON = "#"
+    MATLAB = "%"
+    JAVASCRIPT = "//"
+    FORTRAN = "!"

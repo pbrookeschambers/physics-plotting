@@ -8,7 +8,7 @@ import time
 import datetime
 import logging
 
-from data import DataSeries, FigureProperties
+from data import CSVFile, DataSeries, FigureProperties
 
 # @st.cache_resource
 def get_cookie_manager():
@@ -48,11 +48,12 @@ def get_key():
         return new_key
     return cookie_manager.get(cookie = key_name)
 
-def state_to_json(data_series, figure_properties):
+def state_to_json(data_series, figure_properties, csv_file = None):
     return {
         "time": str(datetime.datetime.now()),
         "data_series": [s.to_dict() for s in data_series],
         "figure_properties": figure_properties.to_dict(),
+        "csv_file": None if csv_file is None else csv_file.to_dict()
     }
 
 def load_data(key):
@@ -66,10 +67,11 @@ def load_data(key):
         data = json.load(data_file.open())
     series = [DataSeries.from_dict(d) for d in data["data_series"]]
     figure_properties = FigureProperties.from_dict(data["figure_properties"])
-    return series, figure_properties
+    csv_file = None if ("csv_file" not in data or data["csv_file"] is None) else CSVFile.from_dict(data["csv_file"])
+    return series, figure_properties, csv_file
 
-def save_data(key, data_series: List[DataSeries], figure_properties: FigureProperties):
-    data = state_to_json(data_series, figure_properties)
+def save_data(key, data_series: List[DataSeries], figure_properties: FigureProperties, csv_file = None):
+    data = state_to_json(data_series, figure_properties, csv_file)
     data_file = data_dir / f"{key}.json"
     json.dump(data, data_file.open("w"))
 
@@ -97,6 +99,6 @@ def clean_old_files():
     for f in data_dir.glob("*.json"):
         if time_since_last_edit(f.stem) > datetime.timedelta(days = 30):
             f.unlink()
-        series, figure_properties = load_data(f.stem)
+        series, figure_properties, csv_file = load_data(f.stem)
         if len(series) == 0:
             f.unlink()

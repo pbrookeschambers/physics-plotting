@@ -25,6 +25,7 @@ st.set_page_config(
 
 from data import (
     AxisProperties,
+    CSVFile,
     Color,
     DataSeries,
     FigureProperties,
@@ -33,7 +34,7 @@ from data import (
     LineOfBestFit,
     Marker,
 )
-from constants import MarkerStyles, LineStyles
+from constants import CommentCharacters, MarkerStyles, LineStyles, Delimiters
 from fitting import fit, get_fitted_data
 from text import process_fit, process_units
 from errors import (
@@ -162,27 +163,35 @@ def extract_data(text: str) -> np.array:
         raise ValueError("Data must be numeric.")
 
 
-def add_new_data():
-    try:
-        x_data = extract_data(st.session_state.new_x_data.strip())
-        y_data = extract_data(st.session_state.new_y_data.strip())
-    except Exception as e:
-        st.error(handle_data_error(e))
-        return
-    if len(x_data) != len(y_data):
-        st.error("The number of $x$-values must match the number of $y$-values.")
-        logging.error(
-            f"Number of x-values ({len(x_data)}) does not match number of y-values ({len(y_data)})."
-        )
-        return
-    try:
-        x_data = np.array([float(x) for x in x_data])
-        y_data = np.array([float(y) for y in y_data])
-    except ValueError:
-        st.error("The data must be numeric.")
-        logging.error("Data is not numeric.")
-        return
-    new_name = st.session_state.new_name
+def add_new_data(
+        name: str = None,
+        x_data: np.array = None,
+        y_data: np.array = None,
+):
+    if x_data is None or y_data is None:
+        try:
+            x_data = extract_data(st.session_state.new_x_data.strip())
+            y_data = extract_data(st.session_state.new_y_data.strip())
+        except Exception as e:
+            st.error(handle_data_error(e))
+            return
+        if len(x_data) != len(y_data):
+            st.error("The number of $x$-values must match the number of $y$-values.")
+            logging.error(
+                f"Number of x-values ({len(x_data)}) does not match number of y-values ({len(y_data)})."
+            )
+            return
+        try:
+            x_data = np.array([float(x) for x in x_data])
+            y_data = np.array([float(y) for y in y_data])
+        except ValueError:
+            st.error("The data must be numeric.")
+            logging.error("Data is not numeric.")
+            return
+    if name is None:
+        new_name = st.session_state.new_name
+    else:
+        new_name = name
     # check if the name is already taken
     for s in st.session_state.data_series:
         if s.name == new_name:
@@ -228,6 +237,8 @@ def add_new_data():
         ),
     )
     st.session_state.data_series.append(s)
+    st.session_state.active_series = s
+    st.rerun()
 
 
 def delete_series(s_name: str):
@@ -489,9 +500,10 @@ def score_sidebar(percent_score, score_color):
 
 if st.session_state.should_load:
     try:
-        _data_series, _figure_properties = load_data(key)
+        _data_series, _figure_properties, _csv_file = load_data(key)
         st.session_state.data_series = _data_series
         st.session_state.figure_properties = _figure_properties
+        st.session_state.csv_file = _csv_file
         st.session_state.should_load = False
     except Exception as e:
         st.error("There was an error loading the data from the server. This is likely due to a server error or an outdated data format. Please start a new figure as normal.")
@@ -504,6 +516,10 @@ if "active_series" not in st.session_state:
     st.session_state.active_series = None
 if "data_series" not in st.session_state:
     st.session_state.data_series = []
+if "csv_file" not in st.session_state:
+    st.session_state.csv_file = None
+if "try_parse_csv" not in st.session_state:
+    st.session_state.try_parse_csv = False
 # Sidebar -------------------------------------
 
 
@@ -1138,7 +1154,7 @@ def main_panes():
     data_col.header("Data")
 
     with data_col:
-        current_data, new_data = st.tabs(["Current Data", "Add New Data"])
+        current_data, new_data, from_csv = st.tabs(["Current Data", "Add New Data", "Add From CSV"])
         with current_data:
             if len(st.session_state.data_series) == 0:
                 st.markdown("No data series added. Add a data series to get started.")
@@ -1226,6 +1242,157 @@ def main_panes():
                 )
             # add button
             st.button("Add Data", key="add_data", on_click=add_new_data)
+        with from_csv:
+            if st.session_state.csv_file is None:
+                # upload csv
+                st.markdown("Upload a CSV file to add data.")
+                csv_file = st.file_uploader(
+                    "Upload CSV",
+                    type=["csv", "tsv", "txt"],
+                    key="upload_csv",
+                    help="Upload a CSV file to add data.",
+                )
+                if csv_file is not None:
+                    csv_contents = csv_file.getvalue().decode("utf-8")
+                    st.session_state.csv_file = CSVFile(csv_contents)
+                    st.session_state.try_parse_csv = True
+                    st.rerun()
+            else:
+                csv_file = st.session_state.csv_file
+                if st.session_state.try_parse_csv:
+                    st.session_state.try_parse_csv = False
+                    # attempt to detect the delimiter
+                    delimiter = csv_file.guess_delimiter()
+                    if delimiter is not None:
+                        csv_file.delimiter = delimiter
+                        # try to guess the number of header rows and footer rows
+                        header_rows = csv_file.guess_header_rows()
+                        csv_file.header_rows = header_rows
+                        footer_rows = csv_file.guess_footer_rows()
+                        csv_file.footer_rows = footer_rows
+                if csv_file.delimiter is None:
+                    st.markdown("I couldn't detect some settings for this CSV file. Please specify them manually.")
+                
+                options_expander =  st.expander("Options")
+                with options_expander:
+                    left, right = st.columns(2)
+                    with left:
+                        st.selectbox(
+                            "Delimiter",
+                            list(Delimiters),
+                            key="csv_delimiter",
+                            format_func=lambda x: x.name.replace("_", " ").title(),
+                            index=csv_file.delimiter.index if csv_file.delimiter is not None else 0,
+                        )
+                    with right:
+                        st.selectbox(
+                            "Comment Character",
+                            list(CommentCharacters),
+                            key="csv_comment_character",
+                            index=csv_file.comment_character.index,
+                            format_func = lambda x: x.value
+                        )
+                    with left:
+                        st.number_input(
+                            "Header Rows",
+                            min_value=0,
+                            value = max(0, csv_file.header_rows),
+                            key="csv_header_rows",
+                            help="The number of rows to skip at the start of the file.",
+                            on_change = lambda: setattr(
+                                csv_file,
+                                "header_rows",
+                                st.session_state.csv_header_rows,
+                            ),
+                        )
+                    with right:
+                        st.number_input(
+                            "Footer Rows",
+                            min_value=0,
+                            value = max(0, csv_file.footer_rows),
+                            key="csv_footer_rows",
+                            help="The number of rows to skip at the end of the file.",
+                            on_change = lambda: setattr(
+                                csv_file,
+                                "footer_rows",
+                                st.session_state.csv_footer_rows,
+                            ),
+                        )
+                try:
+                    data = np.genfromtxt(
+                        csv_file.contents.split("\n"),
+                        delimiter=csv_file.delimiter.value,
+                        skip_header=csv_file.header_rows,
+                        skip_footer=csv_file.footer_rows,
+                        comments=csv_file.comment_character.value,
+                    )
+                    csv_file.data = data
+                except Exception as e:
+                    logging.error(e)
+                with options_expander:
+                    if csv_file.data is not None:
+                        with left:
+                            x_col = st.selectbox(
+                                "X Column",
+                                [str(i) for i in range(len(csv_file.data[0]))],
+                                key="csv_x_col",
+                                index=0,
+                                help="The column to use for the $x$-data."
+                            )
+                        with right:
+                            y_col = st.selectbox(
+                                "Y Column",
+                                [str(i) for i in range(len(csv_file.data[0]))],
+                                key="csv_y_col",
+                                index=1,
+                                help="The column to use for the $y$-data."
+                            )
+                        with left:
+                            name = st.text_input(
+                                "Name",
+                                f"Data Series {len(st.session_state.data_series) + 1}",
+                                key="csv_name",
+                            )
+                            new_x_data = csv_file.data[:, int(x_col)]
+                            new_y_data = csv_file.data[:, int(y_col)]
+                        st.button(
+                            "Add Data",
+                            key="add_csv_data",
+                            on_click=lambda: add_new_data(
+                                name,
+                                new_x_data,
+                                new_y_data,
+                            ),
+                        )
+                    st.button(
+                        "Clear CSV",
+                        key="clear_csv",
+                        type = "primary",
+                        on_click = confirm,
+                        args = (
+                            "Are you sure you want to clear this CSV file?",
+                            lambda: setattr(
+                                st.session_state,
+                                "csv_file",
+                                None
+                            ),
+                            None,
+                            "Clear",
+                            "Cancel"
+                        ),
+                        help = "Clear the current csv file, so that another might be uploaded."
+                    )
+                if csv_file.data is not None:
+                    st.dataframe(
+                        csv_file.data, 
+                        use_container_width=True,
+                        column_config = {
+                            str(x_col): "X Column",
+                            str(y_col): "Y Column"
+                        }
+                    )
+
+
 
     if len(st.session_state.data_series) > 0:
         set_theme(st.session_state.theme)
@@ -1309,6 +1476,7 @@ def main_panes():
                     key,
                     st.session_state.data_series,
                     st.session_state.figure_properties,
+                    st.session_state.csv_file,
                 )
                 st.rerun()
             except Exception as e:
@@ -1324,6 +1492,7 @@ def main_panes():
             key,
             st.session_state.data_series,
             st.session_state.figure_properties,
+            st.session_state.csv_file,
         )
     clean_old_files()
 

@@ -71,7 +71,7 @@ def add_section(section_dir):
     files = [f for f in os.listdir(os.path.join("pages/help_sections", section_dir)) if f.endswith(".md")]
     files = sorted(files)
     for f in files:
-        with st.expander("##### " + f[3:-3].replace("_", " ").title()):
+        with st.expander("##### " + f[3:-3].replace("_", " ").title().replace("Csv", "CSV")):
             with open(os.path.join("pages/help_sections", section_dir, f)) as f:
                 st.markdown(f.read())
 

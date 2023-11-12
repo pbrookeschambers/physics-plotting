@@ -14,9 +14,10 @@ st.set_page_config(
 
 try:
     key = get_key()
-    _data_series, _figure_properties = load_data(key)
+    _data_series, _figure_properties, _csv_file = load_data(key)
     st.session_state.data_series = _data_series
     st.session_state.figure_properties = _figure_properties
+    st.session_state.csv_file = _csv_file
     st.session_state.should_load = False
 except Exception as e:
     pass

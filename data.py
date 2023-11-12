@@ -1,9 +1,11 @@
 from io import StringIO
+import re
 from typing import List
 import numpy as np
 from dataclasses import dataclass
-from constants import MarkerStyles, LineStyles
+from constants import CommentCharacters, MarkerStyles, LineStyles, Delimiters
 from text import parse_unit, process_fit, process_units
+import csv
 
 
 @dataclass
@@ -514,7 +516,6 @@ class LegendProperties:
         )
         return code.getvalue()
 
-
 @dataclass
 class FigureProperties:
     x_axis: AxisProperties
@@ -594,7 +595,9 @@ class FigureProperties:
         return code.getvalue()
 
 
-def indent(string: str, indent_by: int, absolute_indent: bool = False, indent_width: int = 4):
+def indent(
+    string: str, indent_by: int, absolute_indent: bool = False, indent_width: int = 4
+):
     lines = string.split("\n")
     full_indent = " " * indent_width * indent_by
     if not absolute_indent:
@@ -607,3 +610,184 @@ def indent(string: str, indent_by: int, absolute_indent: bool = False, indent_wi
         if line.strip():
             min_indent = min(min_indent, len(line) - len(line.lstrip()))
     lines = [full_indent + line[min_indent:] for line in lines]
+
+
+@dataclass
+class CSVFile:
+    contents: str
+    delimiter: Delimiters = None
+    comment_character: CommentCharacters = CommentCharacters.PYTHON
+    header_rows: int = -1
+    footer_rows: int = -1
+    data: np.array = None
+
+    @staticmethod
+    def split_at_delim(line: str, delimiter: str) -> List[str]:
+        # delimiter could be a regex string.
+        # splits the line at the delimiter, paying attention to quotes and escaped characters.
+        pattern = re.compile(delimiter)
+
+        # first, check if the pattern is actually in the line at all. If not, we don't need to bother parsing anything
+        if not pattern.search(line):
+            return [line]
+
+        # check if there are any quotes in the line. If not, we can just split on the delimiter normally.
+        quotes = ['"', "'"]
+        if not any([quote in line for quote in quotes]):
+            # still could be a regex, so we can't just use .split
+            return re.split(pattern, line)
+        items = []
+        current_item = ""
+        in_quotes = False
+        quote_char = None
+        quotes = ['"""', "'''", '"', "'"]
+        while len(line) > 0:
+            if line[0] == "\\":
+                # next character is escaped, so we can just add it to the current item no matter what it is
+                current_item += line[0:2]
+                line = line[2:]
+                continue
+            if in_quotes:
+                # just check for the closing quote
+                if line.startswith(quote_char):
+                    # we've found the end of the quote
+                    in_quotes = False
+                    quote_char = None
+                    line = line[len(quote_char) :]
+                    continue
+                else:
+                    # add the character to the current item
+                    current_item += line[0]
+                    line = line[1:]
+                    continue
+            else:
+                # check for the opening quote
+                for quote in quotes:
+                    if line.startswith(quote):
+                        # we've found the start of a quote
+                        in_quotes = True
+                        quote_char = quote
+                        line = line[len(quote_char) :]
+                        continue
+                # check for the delimiter pattern
+                matched = pattern.match(line)
+                if matched is not None:
+                    # we've found the delimiter
+                    items.append(current_item)
+                    current_item = ""
+                    line = line[matched.end() :]
+                    continue
+                else:
+                    # add the character to the current item
+                    current_item += line[0]
+                    line = line[1:]
+                    continue
+        # add the last item
+        items.append(current_item)
+        return items
+
+    def guess_delimiter(self) -> str:
+        # guess the delimiter from a list of common delimiters.
+        delimiters = list(Delimiters)
+        lines = self.contents.split("\n")
+        # re-order the lines so that they start from the middle line and work outwards.
+        # We don't know if there are headers or footers, so this should give a better guess if there are.
+        centre = (len(lines) + 1) // 2
+        left, right = lines[:centre], lines[centre:]
+        # reverse the left
+        left = left[::-1]
+        lines = []
+        for i in range(len(right)):
+            lines.append(left[i])
+            lines.append(right[i])
+        if len(right) < len(left):
+            lines.append(left[-1])
+
+        # require a reasonable number of lines to match before we're confident
+        # Most of the time, expect 10 to match. For large files, expect 1/3 to match. Always make sure it's less than the length of the file minus 1 header and 1 footer row.
+        threshold_lines = min(max(10, len(lines) // 3), len(lines) - 2)
+
+        # check each delimiter
+        for d in delimiters:
+            delim = d.value
+            start_len = len(self.split_at_delim(lines[0], delim))
+            if start_len == 1:
+                # this delimiter doesn't work
+                continue
+            for line in lines[1:threshold_lines]:
+                line_len = len(self.split_at_delim(line, delim))
+                if line_len != start_len:
+                    # this delimiter doesn't work
+                    break
+            else:
+                # this delimiter works for all lines
+                return d
+        # if we get here, no delimiter worked
+        return None
+
+    def guess_header_rows(self) -> int:
+        # guess the number of (non-comment) header rows
+        lines = self.contents.split("\n")
+        centre = (len(lines) + 1) // 2
+        # start from the centre, move upwards until a line doesn't have the same number of items. This is the last header row
+        start_row = self.split_at_delim(lines[centre], self.delimiter.value)
+        start_len = len(start_row)
+        data_is_numeric = all([self.is_numeric(item) for item in start_row])
+
+        for i in range(centre-1, -1, -1):
+            row = self.split_at_delim(lines[i], self.delimiter.value)
+            if data_is_numeric:
+                row_is_numeric = all([self.is_numeric(item) for item in row])
+            else:
+                row_is_numeric = False
+            if len(self.split_at_delim(lines[i], self.delimiter.value)) != start_len or (data_is_numeric and not row_is_numeric):
+                return i + 1
+        # if we get here, there is no header
+        return 0
+    
+    def guess_footer_rows(self) -> int:
+        # guess the number of (non-comment) footer rows
+        lines = self.contents.split("\n")
+        centre = (len(lines) + 1) // 2
+        # start from the centre, move downwards until a line doesn't have the same number of items. This is the first footer row
+        start_row = self.split_at_delim(lines[centre], self.delimiter.value)
+        start_len = len(start_row)
+        data_is_numeric = all([self.is_numeric(item) for item in start_row])
+
+        for i in range(centre+1, len(lines)):
+            row = self.split_at_delim(lines[i], self.delimiter.value)
+            if data_is_numeric:
+                row_is_numeric = all([self.is_numeric(item) for item in row])
+            else:
+                row_is_numeric = False
+            if len(self.split_at_delim(lines[i], self.delimiter.value)) != start_len or (data_is_numeric and not row_is_numeric):
+                return len(lines) - i - 1
+        # if we get here, there is no footer
+        return 0
+
+    @staticmethod
+    def is_numeric(string: str) -> bool:
+        try:
+            float(string)
+            return True
+        except ValueError:
+            return False
+        
+    def to_dict(self):
+        return {
+            "contents": self.contents,
+            "delimiter": self.delimiter.value,
+            "comment_character": self.comment_character.value,
+            "header_rows": self.header_rows,
+            "footer_rows": self.footer_rows,
+        }
+    
+    @classmethod
+    def from_dict(cls, d):
+        return cls(
+            contents=d["contents"],
+            delimiter=Delimiters(d["delimiter"]),
+            comment_character=CommentCharacters(d["comment_character"]),
+            header_rows=d["header_rows"],
+            footer_rows=d["footer_rows"],
+        )
