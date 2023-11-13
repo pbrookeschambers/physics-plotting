@@ -1130,7 +1130,6 @@ def file_sidebar():
         ),
     )
 
-st.write(st.session_state.cookie_key)
 
 if len(st.session_state.data_series) > 0:
     score, color = check_for_problems(score_only = True)
