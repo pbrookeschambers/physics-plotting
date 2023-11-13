@@ -1,6 +1,7 @@
 import streamlit as st
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 from streamlit.components.v1 import html
+import logging
 
 cookies = None
 
@@ -9,6 +10,9 @@ def update_cookies_list():
     ctx = get_script_run_ctx()
     server = st.runtime.get_instance().get_client(ctx.session_id)
     cookies = server.cookies
+    logging.info(f"Updated cookies list")
+    for key, val in cookies.items():
+        logging.info(f"    {key}: {val.value}")
 
 def get_all_cookies() -> dict:
     global cookies

@@ -71,10 +71,13 @@ def get_key():
     update_cookies_list()
     # is there a key in the session state? If so, return that
     if "cookie_key" in st.session_state and st.session_state.cookie_key is not None:
+        logging.info(f"Using existing key: {st.session_state.cookie_key}")
         return st.session_state.cookie_key
     # Is there a key in the browser cookies? If so, return that
     if has_cookie(key_name):
-        return get_cookie(key_name)
+        cookie = get_cookie(key_name)
+        logging.info(f"Using existing key: {cookie}")
+        return cookie
 
     # generate a new key
     new_key = generate_uuid()

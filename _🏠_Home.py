@@ -109,13 +109,15 @@ def format_elapsed_time(t_ns: float):
 logging.info("Starting App")
 
 # Setup ---------------------------------------
-update_cookies_list()
 
 if "cookie_key" in st.session_state and st.session_state.cookie_key is not None:
     logging.info(f"Using existing key: {st.session_state.cookie_key}")
+else:
+    time.sleep(1)
+    update_cookies_list()
 
-key = get_key()
-st.session_state.cookie_key = key
+    key = get_key()
+    st.session_state.cookie_key = key
 
 if not "should_load" in st.session_state:
     st.session_state.should_load = True
@@ -503,7 +505,7 @@ def score_sidebar(percent_score, score_color):
 
 if st.session_state.should_load:
     try:
-        _data_series, _figure_properties, _csv_file = load_data(key)
+        _data_series, _figure_properties, _csv_file = load_data(st.session_state.cookie_key)
         st.session_state.data_series = _data_series
         st.session_state.figure_properties = _figure_properties
         st.session_state.csv_file = _csv_file
@@ -1529,7 +1531,7 @@ def main_panes():
                 )
                 st.session_state.active_series = st.session_state.data_series[0]
                 save_data(
-                    key,
+                    st.session_state.cookie_key,
                     st.session_state.data_series,
                     st.session_state.figure_properties,
                     st.session_state.csv_file,
@@ -1557,7 +1559,7 @@ def main_panes():
         or not st.session_state.figure_properties.is_default()
     ):
         save_data(
-            key,
+            st.session_state.cookie_key,
             st.session_state.data_series,
             st.session_state.figure_properties,
             st.session_state.csv_file,
