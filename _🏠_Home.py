@@ -2,6 +2,7 @@ import base64
 import io
 
 import pandas as pd
+from cookies import update_cookies_list
 from marking import check_for_problems
 import streamlit as st
 import numpy as np
@@ -45,13 +46,12 @@ from errors import (
     handle_json_error,
     handle_latex_error,
 )
-from persistance import (
+from persistence import (
     clean_old_files,
     get_key,
     load_data,
     save_data,
     clear_data,
-    get_all_cookies,
 )
 
 
@@ -109,10 +109,13 @@ def format_elapsed_time(t_ns: float):
 logging.info("Starting App")
 
 # Setup ---------------------------------------
+update_cookies_list()
 
+if "cookie_key" in st.session_state and st.session_state.cookie_key is not None:
+    logging.info(f"Using existing key: {st.session_state.cookie_key}")
 
 key = get_key()
-st.session_state.key_cookie = key
+st.session_state.cookie_key = key
 
 if not "should_load" in st.session_state:
     st.session_state.should_load = True
@@ -1127,6 +1130,8 @@ def file_sidebar():
         ),
     )
 
+st.write(st.session_state.cookie_key)
+
 if len(st.session_state.data_series) > 0:
     score, color = check_for_problems(score_only = True)
     score_sidebar(score, color)
@@ -1506,7 +1511,7 @@ def main_panes():
             on_click=confirm,
             args=(
                 "Are you sure you want to start a new figure? :red[This will clear all current data.]",
-                lambda: clear_data(st.session_state.key_cookie),
+                lambda: clear_data(st.session_state.cookie_key),
             ),
             type="primary",
             use_container_width=True,
@@ -1541,7 +1546,7 @@ def main_panes():
             on_click=confirm,
             args=(
                 "Are you sure you want to start a new figure? :red[This will clear all current data.]",
-                lambda: clear_data(st.session_state.key_cookie),
+                lambda: clear_data(st.session_state.cookie_key),
             ),
             type="primary",
             use_container_width=True,

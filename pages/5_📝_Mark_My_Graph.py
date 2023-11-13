@@ -2,7 +2,7 @@
 import streamlit as st
 
 from marking import check_for_problems
-from persistance import get_key, load_data
+from persistence import get_key, load_data
 
 
 st.set_page_config(
