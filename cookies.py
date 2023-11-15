@@ -12,7 +12,8 @@ def update_cookies_list():
     cookies = server.cookies
     logging.info(f"Updated cookies list")
     if cookies is None or len(cookies) == 0:
-        logging.warning("Could not find any cookies" + " (None)" if cookies is None else " (empty)")
+        logging.warning("Could not find any cookies" + (" (None)" if cookies is None else " (empty)"))
+    logging.info(f"ajs_anonymous_id: {server.get_cookie('ajs_anonymous_id')}")
     for key, val in cookies.items():
         logging.info(f"    {key}: {val.value}")
     
