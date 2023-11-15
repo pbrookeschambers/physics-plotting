@@ -14,7 +14,6 @@ from cookies import (
     has_cookie,
     set_cookie,
     delete_cookie,
-    update_cookies_list,
 )
 
 key_name = "physics_plotting_key"
@@ -66,19 +65,21 @@ def generate_uuid() -> str:
 #     logging.info(f"Using existing key: {cookie_manager.get(cookie = key_name)}")
 #     return cookie_manager.get(cookie = key_name)
 
-
-def get_key():
-    update_cookies_list()
+def get_existing_key():
     # is there a key in the session state? If so, return that
     if "cookie_key" in st.session_state and st.session_state.cookie_key is not None:
-        logging.info(f"Using existing key: {st.session_state.cookie_key}")
+        logging.info(f"Using existing key (from state): {st.session_state.cookie_key}")
         return st.session_state.cookie_key
     # Is there a key in the browser cookies? If so, return that
     if has_cookie(key_name):
         cookie = get_cookie(key_name)
-        logging.info(f"Using existing key: {cookie}")
+        logging.info(f"Using existing key (from cookies): {cookie}")
         return cookie
 
+    return None
+
+
+def get_new_key():
     # generate a new key
     new_key = generate_uuid()
     i = 10
@@ -89,7 +90,7 @@ def get_key():
     if i == 0:
         raise Exception("Could not generate a unique key")
     # expires in 1 month
-    set_cookie(key_name, new_key, expires_in=2592000)
+    set_cookie(key_name, new_key, expires_in=30)
     logging.info(f"Generated new key: {new_key}")
     # add the key to the session state
     st.session_state.cookie_key = new_key

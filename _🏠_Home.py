@@ -2,7 +2,7 @@ import base64
 import io
 
 import pandas as pd
-from cookies import update_cookies_list
+from cookies import get_all_cookies
 from marking import check_for_problems
 import streamlit as st
 import numpy as np
@@ -48,7 +48,8 @@ from errors import (
 )
 from persistence import (
     clean_old_files,
-    get_key,
+    get_existing_key,
+    get_new_key,
     load_data,
     save_data,
     clear_data,
@@ -110,18 +111,6 @@ logging.info("Starting App")
 
 # Setup ---------------------------------------
 
-if "cookie_key" in st.session_state and st.session_state.cookie_key is not None:
-    logging.info(f"Using existing key: {st.session_state.cookie_key}")
-else:
-    time.sleep(1)
-    update_cookies_list()
-
-    key = get_key()
-    st.session_state.cookie_key = key
-
-if not "should_load" in st.session_state:
-    st.session_state.should_load = True
-
 st.markdown(
     """<style>
     div[data-testid="stColorBlock"] {
@@ -139,6 +128,36 @@ st.markdown(
 </style>""",
     unsafe_allow_html=True,
 )
+
+default_attempts = 3
+
+if "attempt" not in st.session_state:
+    st.session_state.attempt = default_attempts # will attempt to find cookies this many times, resetting each time cookies are found.
+
+if "cookie_key" in st.session_state and st.session_state.cookie_key is not None:
+    logging.info(f"Using existing key (from state -- home): {st.session_state.cookie_key}")
+    key = st.session_state.cookie_key
+else:
+    key = get_existing_key()
+    if key is None:
+        if st.session_state.attempt > 1:
+            st.session_state.attempt -= 1
+        else:
+            key = get_new_key()
+            st.session_state.cookie_key = key
+    else:
+        st.session_state.should_load = True
+        st.session_state.attempt = default_attempts
+        st.session_state.cookie_key = key
+
+if not "should_load" in st.session_state:
+    st.session_state.should_load = True
+
+# st.write(f"KEY: `{key}`")
+# if "cookie_key" in st.session_state:
+#     st.write(f"STATE: `{st.session_state.cookie_key}`")
+# else:
+#     st.write("No cookie in state")
 
 
 def set_theme(theme):
@@ -1530,12 +1549,13 @@ def main_panes():
                     data["figure_properties"]
                 )
                 st.session_state.active_series = st.session_state.data_series[0]
-                save_data(
-                    st.session_state.cookie_key,
-                    st.session_state.data_series,
-                    st.session_state.figure_properties,
-                    st.session_state.csv_file,
-                )
+                if "cookie_key" in st.session_state:
+                    save_data(
+                        st.session_state.cookie_key,
+                        st.session_state.data_series,
+                        st.session_state.figure_properties,
+                        st.session_state.csv_file,
+                    )
                 st.rerun()
             except Exception as e:
                 st.error(handle_json_error(e))
@@ -1557,13 +1577,14 @@ def main_panes():
     if (
         len(st.session_state.data_series) > 0
         or not st.session_state.figure_properties.is_default()
-    ):
-        save_data(
-            st.session_state.cookie_key,
-            st.session_state.data_series,
-            st.session_state.figure_properties,
-            st.session_state.csv_file,
-        )
+    ):#
+        if "cookie_key" in st.session_state:
+            save_data(
+                st.session_state.cookie_key,
+                st.session_state.data_series,
+                st.session_state.figure_properties,
+                st.session_state.csv_file,
+            )
     clean_old_files()
 
 if "getting_confirmation" not in st.session_state:
