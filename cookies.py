@@ -11,8 +11,11 @@ def update_cookies_list():
     server = st.runtime.get_instance().get_client(ctx.session_id)
     cookies = server.cookies
     logging.info(f"Updated cookies list")
+    if cookies is None or len(cookies) == 0:
+        logging.warning("Could not find any cookies" + " (None)" if cookies is None else " (empty)")
     for key, val in cookies.items():
         logging.info(f"    {key}: {val.value}")
+    
 
 def get_all_cookies() -> dict:
     global cookies
